@@ -14,8 +14,9 @@ A Formula 1 team-manager game for phones (1–4 players). See [SPEC.md](SPEC.md)
 | 2b | Landscape layout, follow camera | ✅ done |
 | 3 | Overtaking duels (close-up + animations) and pit stop game | ✅ done |
 | 4 | Hot Lap qualifying | ✅ done |
-| 5 | Team setup, briefing, season, 8 tracks | next |
-| 6–7 | Multiplayer, polish | later |
+| 5 | Team setup, briefing, season, 8 tracks | ✅ done |
+| 6 | Multiplayer (lobby, server, reconnecting) | ✅ done – server setup: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) |
+| 7 | Polish: PWA install, sounds, final balancing | next |
 
 ## Project layout
 
@@ -26,11 +27,15 @@ src/sim/        the race engine (pure TypeScript, no browser code – also runs 
   race.ts       the race loop: createRace(), step(), applyCommand(), results()
   ai.ts         AI pit stops, rain calls, driving modes, duel choices
   weather.ts    rain timeline and forecasts
-  tracks.ts     tracks (3 now, 8 in milestone 5)
+  tracks.ts     the 8 tracks
   teams.ts      fictional AI teams, points
   grid.ts       building the 12-car field
   quali.ts      Hot Lap qualifying rules, AI laps, grid
-src/screens/    start screen, qualifying, race screen, results
+src/game/       season, championship, team (+ saving on the phone)
+src/net/        multiplayer messages and the connection to the server
+src/server/     the multiplayer game room (+ a small Node server)
+server/         the same room on Cloudflare (Workers + Durable Objects)
+src/screens/    menu, team, briefing, qualifying, race, results, multiplayer
 src/ui/         track drawing, duel close-up, pit stop game, helpers
 src/i18n.ts     all UI text, German and English
 tests/          unit tests (Vitest)
@@ -62,3 +67,4 @@ npm run dev
 - `npm test` runs all unit tests.
 - `npm run balance` simulates hundreds of races and prints the section 10 statistics (`--quick` for a fast run, `--only stops,push` for some sections, `--tuning '{"pitLossScale":0.5}'` to try other numbers).
 - `npm run dev` starts the game on your computer (open the address it prints).
+- `npm run server` starts the multiplayer server on your computer (port 8787).

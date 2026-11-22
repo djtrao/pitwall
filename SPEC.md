@@ -14,7 +14,7 @@ Build "Pit Wall", a Formula 1 team-manager game for phones. 1 to 4 players each 
 - **Mobile web app (PWA)**, **landscape first** (the phone is held sideways, Android first), portrait still usable, installable on the home screen, works on iPhone and Android browsers. No app store.
 - **TypeScript + Vite**, rendering with Canvas 2D. No heavy game engine needed.
 - **Simulation as a pure, deterministic module** (seeded random number generator, no DOM). The same module runs in the browser for single player and on the server for multiplayer.
-- **Multiplayer:** one authoritative server room per game, connected by WebSocket. Propose a free or very cheap hosting option (for example PartyKit / Cloudflare Durable Objects, or a small Node server on Fly.io) and explain the choice before building it.
+- **Multiplayer:** one authoritative server room per game, connected by WebSocket. **Chosen: Cloudflare Workers + Durable Objects (free plan)** – one Durable Object per game code = one authoritative room per game, never sleeps, no credit card. The same room code also runs as a small Node server (`npm run server`) for testing and for playing on the same Wi-Fi from a laptop. Setup guide: `docs/MULTIPLAYER.md`.
 - The server runs the race at 10 ticks per second and sends state to the phones about 5 times per second. Phones interpolate car positions smoothly and only send commands (driving mode, pit plan, duel choice, qualifying results).
 - It must work on the same Wi-Fi and over the internet (kids at different homes).
 - **Unit tests** (Vitest) for the simulation, and a **headless balance runner**: a script that simulates hundreds of races with scripted strategies and prints statistics (see section 10).
@@ -63,7 +63,7 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** o
 
 1. Choose a tyre (Soft, Medium, Hard, Rain). A second run on the same compound as the first gets +0.2 s (used tyres).
 2. The car drives around the track view. Before each of the 3 key corners, the player chooses how hard to go (3 seconds to choose, default Safe).
-3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The bar has a green zone in the middle and yellow zones beside it.
+3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. Send it! leaves only about 0.1 s (Pro) to 0.15 s (Rookie).
 4. After the lap: lap time, position on the provisional leaderboard, and a short comment ("Great lap!", "Lap deleted – track limits").
 
 | Choice | Green zone width | Hit green | Hit yellow | Miss |
@@ -77,7 +77,7 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** o
 - Soft tyres make green zones 20% wider, Hard 15% narrower.
 - Slick tyres on a wet track (over 30% wetness): zones 40% narrower. Rain tyres on a wet track: normal width.
 - Lap time = base lap time from the race model (car, driver, tyre, wetness) + corner results + small noise (±0.1 s).
-- **Difficulty per player:** Rookie (slower marker) or Pro (faster marker), so kids of different ages can play together.
+- **Difficulty per player:** Rookie (marker crosses in 1.4 s) or Pro (0.95 s), so kids of different ages can play together.
 
 **Order and multiplayer**
 
@@ -159,9 +159,15 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 - **Animation:** after both have chosen (or the 6 s are over), a ~3 s animation shows how it pans out. Three scenes, chosen by where the duel happens: a straight, a corner and a chicane. Each scene always starts the same way and then shows the ending: passed, defended, contact, spin, off the track, or waiting. The result counts in the race only after the animation (so the timing tower does not give it away).
 - **Failed attack:** attacker loses 0.3 s and 2% tyre condition. **Crash:** both lose 3 s, the attacker has a 30% chance of front wing damage (+0.8 s per lap until a pit stop repairs it, which adds 5 s to the stop).
 
+### 7.5a Damage
+
+- **Front wing** (from contact): +0.8 s per lap, driving mistakes ×1.5, and in duels all risks are higher (crash risk ×1.6, even a careful move has some risk) and the pass chance is lower. Repair: +5 s at the next stop.
+- **Engine** (from contact 20 %, going off 15 %, spins 5 %): less top speed, +1.0 s per lap; harder to overtake and easier to be overtaken. Repair: +8 s at the next stop.
+- Damage is always visible as symbols in the driver card and the timing tower (also in fullscreen); the duel chances and risk symbols include it. The AI pits for repairs.
+
 ### 7.5b Pit stop game
 
-- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car, the 4 wheels light up one after another in random order – tap each as fast as possible (wrong wheel = stuck wheel nut). Then the release light: wait for green, then tap GO. Tapping on red is an unsafe release: +5 s penalty.
+- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car with **8 spots** (4 wheels, front jack, rear jack, front wing, engine). In each stop **4 of them** light up one after another in a random order – tap each as fast as possible; tapping a dark spot means something got stuck. A broken wing or engine is always one of the 4. Then the release light: wait for green, then tap GO. Tapping on red is an unsafe release: +5 s penalty.
 - The reaction times are turned into an F1-style standing time (about 1.9 s to 6 s) and shown with a rating: great (≤ 2.2 s), good (≤ 2.8 s), a bit slow (≤ 3.6 s), slow. The difference to the average 2.6 s changes the stop.
 - If the player does not touch anything, the crew does an average stop (no penalty). AI crews vary a little and sometimes fumble (+2 s). The second car of a team that stops at the same time waits behind the first (+3 s).
 - The game runs on the phone; only the result is sent to the server (like the Hot Lap timing). In single player at 4× the race slows to 2× while the game runs.

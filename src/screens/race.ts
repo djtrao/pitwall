@@ -9,6 +9,7 @@ import {
   step,
   tyreRuleOk,
   type Car,
+  type Command,
   type Duel,
   type DuelAttack,
   type DuelDefend,
@@ -28,19 +29,71 @@ const MODE_ICON = ['🐢', '➖', '🔥', '💥'];
 const TYRES: Tyre[] = ['S', 'M', 'H', 'W'];
 const TICKER_SECONDS = 6;
 
+/** Where the race comes from: the local simulation (single player) or the server (multiplayer). */
+export interface RaceSource {
+  /** Current race state (a newer snapshot may replace it). */
+  readonly race: RaceState;
+  /** Team id of the cars this phone controls. */
+  myTeam: string;
+  command(cmd: Command): void;
+  /** Called every frame. Local: runs the simulation (10 ticks per real second). */
+  advance(dt: number, speed: number): void;
+  /** Interpolated distance of a car, for smooth drawing. */
+  dist(c: Car): number;
+  /** Speed buttons: local = pause/1×/2×/4×, host = pause/1×/2× (multiplayer host), none = no buttons. */
+  speedMode: 'local' | 'host' | 'none';
+  setSpeed?(speed: number): void;
+  /** Multiplayer: current speed and pause state set by the host. */
+  hostSpeed?(): number;
+}
+
+/** Single player: the race runs here on the phone. */
+export function localRace(race: RaceState, myTeam = 'me'): RaceSource {
+  let acc = 0;
+  const prev = new Map<string, number>(race.cars.map((c) => [c.id, c.dist]));
+  return {
+    race,
+    myTeam,
+    speedMode: 'local',
+    command: (cmd) => void applyCommand(race, cmd),
+    advance(dt, speed) {
+      if (race.over || speed <= 0) return;
+      // always 10 ticks per real second; a faster race takes bigger steps (like the server)
+      race.speed = speed;
+      acc += dt;
+      let n = 0;
+      while (acc >= TICK && n < 100) {
+        for (const c of race.cars) prev.set(c.id, c.dist);
+        step(race, TICK);
+        acc -= TICK;
+        n++;
+      }
+    },
+    dist(c) {
+      const alpha = race.over ? 1 : Math.min(1, acc / TICK);
+      const p = prev.get(c.id) ?? c.dist;
+      return Math.abs(c.dist - p) > 0.1 ? c.dist : p + (c.dist - p) * alpha;
+    },
+  };
+}
+
 /**
- * The single-player race screen.
+ * The race screen.
  * Landscape (phone held sideways): timing tower left, track centre, driver cards right, bar at the bottom.
  * Portrait: everything stacked. The layout itself is pure CSS (see .race in style.css).
  */
-export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void): void {
-  const mine = race.cars.filter((c) => c.human).sort((a, b) => a.id.localeCompare(b.id));
-  const isMine = (c: Car) => c.human;
+/** Returns a function that stops the screen (used by multiplayer when the server moves on). */
+export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void): () => void {
+  let race = src.race;
+  const mineIds = race.cars.filter((c) => c.teamId === src.myTeam).map((c) => c.id).sort();
+  // always the current Car objects (multiplayer snapshots replace them)
+  const mineCars = () => mineIds.map((id) => race.cars.find((c) => c.id === id)!);
+  let mine = mineCars();
+  const isMine = (c: Car) => c.teamId === src.myTeam;
   const cross = Math.round(crossoverWetness(race.tuning));
   // tyre the player has selected for the next stop, per driver
   const sel = new Map<string, Tyre>(mine.map((c) => [c.id, suggestTyre(c)]));
   let speed = 1;
-  let acc = 0;
   let last = performance.now();
   let uiTimer = 0;
   let lastEvent = 0;
@@ -48,7 +101,6 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
   let running = true;
   let tickerUntil = 0;
   const wornShown = new Set<string>();
-  const prev = new Map<string, number>(race.cars.map((c) => [c.id, c.dist]));
 
   document.body.classList.add('racing');
   app.innerHTML = `
@@ -56,8 +108,8 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       <div class="r-bar">
         <div class="r-lap"><span class="mut small">${esc(race.track.name)}</span><b id="lapc"></b></div>
         <div class="r-wx" id="wxbar"></div>
-        <div class="seg r-speed" id="spd">${[0, 1, 2, 4]
-          .map((s) => `<button data-s="${s}" class="${s === 1 ? 'on' : ''}" aria-label="${s ? `${s}×` : t('pause')}">${s ? `${s}×` : '❚❚'}</button>`)
+        <div class="seg r-speed" id="spd">${(src.speedMode === 'local' ? [0, 1, 2, 4] : src.speedMode === 'host' ? [0, 1, 2] : [])
+          .map((s) => `<button data-s="${s}" class="${s === (src.hostSpeed?.() ?? 1) ? 'on' : ''}" aria-label="${s ? `${s}×` : t('pause')}">${s ? `${s}×` : '❚❚'}</button>`)
           .join('')}</div>
         ${fullscreenButton(t('fullscreen'))}
       </div>
@@ -89,6 +141,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     const b = (e.target as HTMLElement).closest('button');
     if (!b) return;
     speed = Number(b.dataset.s);
+    src.setSpeed?.(speed);
     $('spd').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   };
   const unwireFs = wireFullscreen(app, onResize);
@@ -103,14 +156,14 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     }
     if (c.status === 'finished' || c.status === 'dnf') return;
     const v = b.dataset.v!;
-    if (b.dataset.act === 'mode') applyCommand(race, { type: 'mode', car: c.id, mode: Number(v) as Mode });
+    if (b.dataset.act === 'mode') src.command({ type: 'mode', car: c.id, mode: Number(v) as Mode });
     if (b.dataset.act === 'sel') {
       // tap cycles Soft → Medium → Hard → Rain
       const next = TYRES[(TYRES.indexOf(sel.get(c.id)!) + 1) % TYRES.length];
       sel.set(c.id, next);
-      if (c.pitPlan) applyCommand(race, { type: 'pit', car: c.id, tyre: next });
+      if (c.pitPlan) src.command({ type: 'pit', car: c.id, tyre: next });
     }
-    if (b.dataset.act === 'box') applyCommand(race, { type: 'pit', car: c.id, tyre: c.pitPlan ? null : sel.get(c.id)! });
+    if (b.dataset.act === 'box') src.command({ type: 'pit', car: c.id, tyre: c.pitPlan ? null : sel.get(c.id)! });
     updateUI();
   };
 
@@ -124,17 +177,20 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
   function follow(id: string | null) {
     tv.followId = id;
     // duel prompts only for the car you are watching; the other car decides by itself
-    for (const c of mine) applyCommand(race, { type: 'autoDuel', car: c.id, on: c.id !== id });
+    for (const c of mine) src.command({ type: 'autoDuel', car: c.id, on: c.id !== id });
     mine.forEach((c, i) => $(`cfollow${i}`).classList.toggle('on', c.id === id));
     updateUI();
   }
 
-  $('tores').onclick = () => {
+  function stop() {
     running = false;
     unwireFs();
     window.removeEventListener('resize', onResize);
     screen.orientation?.removeEventListener?.('change', onResize);
     document.body.classList.remove('racing');
+  }
+  $('tores').onclick = () => {
+    stop();
     onDone();
   };
 
@@ -143,29 +199,11 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     if (!running) return;
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
-    if (!race.over && speed > 0) {
-      // always 10 ticks per real second; a faster race takes bigger steps (like the server)
-      // single player at 4×: slow to 2× while the pit stop game runs, so the stop does not end before you finish
-      race.speed = pitPlaying ? Math.min(speed, 2) : speed;
-      acc += dt;
-      let n = 0;
-      while (acc >= TICK && n < 100) {
-        for (const c of race.cars) prev.set(c.id, c.dist);
-        step(race, TICK);
-        acc -= TICK;
-        n++;
-      }
-    }
-    // smooth movement between simulation ticks
-    const alpha = race.over ? 1 : Math.min(1, acc / TICK);
-    tv.drawRace(
-      race,
-      (c) => {
-        const p = prev.get(c.id) ?? c.dist;
-        return Math.abs(c.dist - p) > 0.1 ? c.dist : p + (c.dist - p) * alpha;
-      },
-      isMine,
-    );
+    // single player at 4×: slow to 2× while the pit stop game runs, so the stop does not end before you finish
+    src.advance(dt, pitPlaying ? Math.min(speed, 2) : speed);
+    race = src.race;
+    mine = mineCars();
+    tv.drawRace(race, (c) => src.dist(c), isMine);
     updateDuel();
     updatePitGame();
     uiTimer += dt;
@@ -234,7 +272,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       <div class="duel-opts">${opts.map((o) => duelButton(o.choice, o.success, o.risk, attacking)).join('')}</div>`;
     box.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach((b) => {
       b.onclick = () => {
-        applyCommand(race, { type: 'duel', duel: d.id, car: active!.carId, choice: Number(b.dataset.choice) as DuelAttack | DuelDefend });
+        src.command({ type: 'duel', duel: d.id, car: active!.carId, choice: Number(b.dataset.choice) as DuelAttack | DuelDefend });
         box.innerHTML = `<div class="duel-title">${t('duelWaiting')}</div>`;
       };
     });
@@ -262,7 +300,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       esc(t('pitTitle', { car: `#${c.num} ${surname(c.name)}` })),
       race.tuning.pit.avgStop,
       (r) => {
-        applyCommand(race, { type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: r.unsafe });
+        src.command({ type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: r.unsafe });
       },
       () => (pitPlaying = false),
       [...(c.wingDamage ? (['fw'] as const) : []), ...(c.engineDamage ? (['en'] as const) : [])],
@@ -345,7 +383,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       <div class="wx-wet" title="${t('crossover', { w: cross })}"><span class="small">${t('wetness')} <b>${Math.round(race.wetness)} %</b></span>${bar}</div>
       <div class="wx-fc">${blocks
         .slice(0, 3)
-        .map((b) => `<span><small>${t('lapShort')}${b.fromLap}–${b.toLap}</small><b>${b.chance}%</b></span>`)
+        .map((b) => `<span><small>${t('lapShort')}${b.fromLap === b.toLap ? b.fromLap : `${b.fromLap}–${b.toLap}`}</small><b>${b.chance}%</b></span>`)
         .join('')}</div>`;
     // full panel (portrait)
     $('wx').innerHTML = `<h3>${t('weather')}</h3>
@@ -353,7 +391,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       ${bar}
       <div class="hint">${t('crossover', { w: cross })}</div>
       <div class="hint mt">${t('forecast')}:</div>
-      <div class="fc">${blocks.map((b) => `<div class="fcb"><small>${t('lap')} ${b.fromLap}–${b.toLap}</small><b>${b.chance} %</b></div>`).join('')}</div>`;
+      <div class="fc">${blocks.map((b) => `<div class="fcb"><small>${t('lap')} ${b.fromLap === b.toLap ? b.fromLap : `${b.fromLap}–${b.toLap}`}</small><b>${b.chance} %</b></div>`).join('')}</div>`;
   }
 
   function updateTower(st: Car[], leader: Car) {
@@ -368,7 +406,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       const flag = (c.wingDamage ? '🪛' : '') + (c.engineDamage ? '⚙️' : '') + (c.status === 'running' && c.loss > 0 ? '⚠️' : c.pitPlan ? '📻' : '');
       const followed = tv.followId === c.id ? ' follow' : '';
       return `<tr class="${isMine(c) ? 'me' : ''}${followed}" data-follow="${c.id}"><td class="p">${i + 1}</td>
-        <td class="n"><span class="chip" style="background:${c.color}"></span><span class="nm">${esc(surname(c.name))}</span><span class="code">${shortName(c.name)}</span>${flag}</td>
+        <td class="n"><span class="chip" style="background:${c.color}"></span><span class="tn">${c.num}</span><span class="nm">${esc(surname(c.name))}</span><span class="code">${shortName(c.name)}</span>${flag}</td>
         <td class="ty">${tyreIcon(c.tyre, true)}</td><td class="g">${gap}</td></tr>`;
     });
     $('tower').innerHTML = `<table>${rows.join('')}</table>`;
@@ -455,6 +493,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     tv.fit();
     requestAnimationFrame(frame);
   });
+  return stop;
 }
 
 const ATTACK_ICON = ['⏳', '🙂', '😤', '😈', '🎲'];

@@ -1,8 +1,8 @@
 import type { Track } from './types';
 
 /**
- * Tracks for the simulation core. Milestone 5 adds the full set of 8 tracks;
- * these three come from the prototype (shapes kept) with the new spec values.
+ * The 8 fictional tracks (SPEC section 4). The first three come from the prototype.
+ * Key corner positions were measured from the drawn shape (the three sharpest bends).
  */
 export const TRACKS: Track[] = [
   {
@@ -18,8 +18,8 @@ export const TRACKS: Track[] = [
     safetyCarChance: 0.35,
     corners: [
       { name: 'Hafenkurve', at: 0.18 },
-      { name: 'Loreley', at: 0.52 },
-      { name: 'Brückenschikane', at: 0.83 },
+      { name: 'Loreley', at: 0.37 },
+      { name: 'Brückenschikane', at: 0.66 },
     ],
     shape: [[0.45, 0.86], [0.75, 0.86], [0.9, 0.72], [0.88, 0.47], [0.75, 0.37], [0.8, 0.15], [0.57, 0.1], [0.47, 0.3], [0.3, 0.32], [0.2, 0.12], [0.07, 0.3], [0.09, 0.7], [0.2, 0.86]],
   },
@@ -35,9 +35,9 @@ export const TRACKS: Track[] = [
     rainChance: 0.15,
     safetyCarChance: 0.6,
     corners: [
-      { name: 'Casino', at: 0.22 },
-      { name: 'Hafentunnel', at: 0.55 },
-      { name: 'Haarnadel', at: 0.78 },
+      { name: 'Casino', at: 0.2 },
+      { name: 'Hafentunnel', at: 0.5 },
+      { name: 'Haarnadel', at: 0.77 },
     ],
     shape: [[0.5, 0.88], [0.8, 0.88], [0.93, 0.76], [0.8, 0.6], [0.92, 0.45], [0.86, 0.16], [0.66, 0.11], [0.62, 0.36], [0.46, 0.42], [0.42, 0.15], [0.2, 0.1], [0.08, 0.28], [0.26, 0.5], [0.08, 0.68], [0.2, 0.88]],
   },
@@ -53,11 +53,101 @@ export const TRACKS: Track[] = [
     rainChance: 0.6,
     safetyCarChance: 0.3,
     corners: [
-      { name: 'Hirschsprung', at: 0.25 },
+      { name: 'Hirschsprung', at: 0.33 },
       { name: 'Tannenbogen', at: 0.5 },
-      { name: 'Fuchsloch', at: 0.8 },
+      { name: 'Fuchsloch', at: 0.79 },
     ],
     shape: [[0.5, 0.9], [0.84, 0.86], [0.95, 0.62], [0.8, 0.46], [0.92, 0.2], [0.66, 0.08], [0.5, 0.26], [0.35, 0.1], [0.12, 0.14], [0.05, 0.44], [0.22, 0.58], [0.1, 0.78], [0.25, 0.9]],
+  },
+  {
+    id: 'duenenring',
+    name: 'Dünenring',
+    desc: 'Hot desert track with long straights. Sand eats the tyres, overtaking is easy, rain almost never.',
+    laps: 17,
+    base: 80,
+    wear: 1.2,
+    overtaking: 0.7,
+    pitLoss: 22,
+    rainChance: 0.1,
+    safetyCarChance: 0.25,
+    corners: [
+      { name: 'Kamelbuckel', at: 0.27 },
+      { name: 'Oasenbogen', at: 0.52 },
+      { name: 'Sandsturm', at: 0.79 },
+    ],
+    shape: [[0.42, 0.84], [0.72, 0.84], [0.9, 0.78], [0.94, 0.6], [0.84, 0.5], [0.9, 0.32], [0.84, 0.14], [0.62, 0.12], [0.5, 0.26], [0.36, 0.14], [0.14, 0.14], [0.06, 0.32], [0.2, 0.5], [0.08, 0.66], [0.16, 0.84]],
+  },
+  {
+    id: 'alpenpass',
+    name: 'Alpenpass',
+    desc: 'Narrow and twisty in the mountains. Hard to overtake, gentle on tyres – the weather changes quickly.',
+    laps: 16,
+    base: 88,
+    wear: 0.9,
+    overtaking: 0.3,
+    pitLoss: 24,
+    rainChance: 0.4,
+    safetyCarChance: 0.45,
+    corners: [
+      { name: 'Gämsenkehre', at: 0.19 },
+      { name: 'Gletscherblick', at: 0.58 },
+      { name: 'Murmeltierloch', at: 0.8 },
+    ],
+    shape: [[0.46, 0.86], [0.7, 0.86], [0.84, 0.76], [0.72, 0.62], [0.88, 0.52], [0.94, 0.34], [0.8, 0.2], [0.68, 0.3], [0.58, 0.12], [0.42, 0.1], [0.36, 0.3], [0.24, 0.2], [0.08, 0.24], [0.12, 0.44], [0.26, 0.52], [0.12, 0.68], [0.22, 0.86]],
+  },
+  {
+    id: 'seeblick',
+    name: 'Seeblick',
+    desc: 'Fast lakeside circuit. Average tyre wear, good overtaking – a fair fight for everyone.',
+    laps: 18,
+    base: 74,
+    wear: 1.0,
+    overtaking: 0.6,
+    pitLoss: 20,
+    rainChance: 0.3,
+    safetyCarChance: 0.3,
+    corners: [
+      { name: 'Leuchtturm', at: 0.18 },
+      { name: 'Seglerbucht', at: 0.33 },
+      { name: 'Schilfkurve', at: 0.8 },
+    ],
+    shape: [[0.4, 0.86], [0.76, 0.86], [0.92, 0.74], [0.92, 0.5], [0.78, 0.4], [0.84, 0.18], [0.66, 0.1], [0.36, 0.12], [0.16, 0.18], [0.08, 0.4], [0.22, 0.52], [0.1, 0.72], [0.2, 0.86]],
+  },
+  {
+    id: 'kesselring',
+    name: 'Kesselring',
+    desc: 'Short and very fast, nearly an oval. Lots of slipstream and overtaking – tyres suffer.',
+    laps: 18,
+    base: 70,
+    wear: 1.15,
+    overtaking: 0.8,
+    pitLoss: 18,
+    rainChance: 0.2,
+    safetyCarChance: 0.4,
+    corners: [
+      { name: 'Steilkurve Nord', at: 0.2 },
+      { name: 'Gegengerade', at: 0.35 },
+      { name: 'Steilkurve Süd', at: 0.77 },
+    ],
+    shape: [[0.4, 0.84], [0.7, 0.84], [0.88, 0.76], [0.94, 0.52], [0.88, 0.26], [0.7, 0.14], [0.4, 0.14], [0.18, 0.16], [0.08, 0.32], [0.14, 0.48], [0.06, 0.64], [0.16, 0.84]],
+  },
+  {
+    id: 'nebelberg',
+    name: 'Nebelberg',
+    desc: 'Long old-school track on a misty hill. Rain is likely, pit stops are expensive.',
+    laps: 16,
+    base: 90,
+    wear: 1.05,
+    overtaking: 0.5,
+    pitLoss: 25,
+    rainChance: 0.55,
+    safetyCarChance: 0.35,
+    corners: [
+      { name: 'Nebelwand', at: 0.23 },
+      { name: 'Burgruine', at: 0.54 },
+      { name: 'Teufelsschlucht', at: 0.83 },
+    ],
+    shape: [[0.44, 0.86], [0.74, 0.86], [0.9, 0.7], [0.76, 0.56], [0.9, 0.4], [0.88, 0.18], [0.7, 0.1], [0.6, 0.28], [0.46, 0.36], [0.4, 0.14], [0.22, 0.08], [0.08, 0.2], [0.16, 0.4], [0.06, 0.58], [0.18, 0.74], [0.24, 0.86]],
   },
 ];
 
