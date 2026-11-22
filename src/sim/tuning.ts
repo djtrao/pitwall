@@ -74,7 +74,7 @@ export const DEFAULT_TUNING = {
     /** Share of a lap the attacker must stay close before a duel starts. */
     closeLaps: 0.5,
     /** Real seconds a human has to answer a duel prompt. */
-    answerSeconds: 6,
+    answerSeconds: 5,
     /** Base pass chance [attacker][defender]: rows Inside/Outside, columns CoverIn/CoverOut. */
     pass: { inside: [0.2, 0.7], outside: [0.6, 0.25] },
     crash: { inside: [0, 0], outside: [0.1, 0.15] },

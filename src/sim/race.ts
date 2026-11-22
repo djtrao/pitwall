@@ -1,4 +1,4 @@
-import { aiAttack, aiDefend, aiOnLap } from './ai';
+import { aiAttack, aiDefend, aiOnLap, attackChoiceOdds, defendChoiceOdds } from './ai';
 import { carLapTime, mistakeChance, tyreRuleOk, wearPerLap } from './model';
 import { chance, clamp, gauss, int, makeRng, rand, range } from './rng';
 import { makeTuning, type Tuning } from './tuning';
@@ -398,6 +398,48 @@ export function duelOdds(
   const crash = t.crash[attack][col];
   const p = t.pass[attack][col] * (overtaking / 0.5) + t.paceBonusPer03 * (adv / 0.3);
   return { pass: clamp(p, 0, Math.min(t.maxPass, 1 - crash)), crash };
+}
+
+export interface DuelOption {
+  choice: DuelAttack | DuelDefend;
+  /** Attacker: chance to get past. Defender: chance to stay ahead. */
+  success: number;
+  crash: number;
+}
+
+/**
+ * What each choice is likely to bring for `carId` in this duel, averaged over what the
+ * opponent will probably do. Used for the chance and risk symbols in the duel prompt.
+ */
+export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOption[] {
+  const att = race.cars.find((c) => c.id === duel.attacker)!;
+  const def = race.cars.find((c) => c.id === duel.defender)!;
+  const adv = def.lapTime - att.lapTime;
+  const ot = race.track.overtaking;
+  if (carId === att.id) {
+    const opp = defendChoiceOdds(adv);
+    return (['inside', 'outside', 'wait'] as DuelAttack[]).map((a) => {
+      let success = 0;
+      let crash = 0;
+      for (const [d, p] of Object.entries(opp) as [DuelDefend, number][]) {
+        const o = duelOdds(race.tuning, ot, a, d, adv);
+        success += p * o.pass;
+        crash += p * o.crash;
+      }
+      return { choice: a, success, crash };
+    });
+  }
+  const opp = attackChoiceOdds(att, adv);
+  return (['coverInside', 'coverOutside', 'letGo'] as DuelDefend[]).map((d) => {
+    let success = 0;
+    let crash = 0;
+    for (const [a, p] of Object.entries(opp) as [DuelAttack, number][]) {
+      const o = duelOdds(race.tuning, ot, a, d, adv);
+      success += p * (1 - o.pass - o.crash);
+      crash += p * o.crash;
+    }
+    return { choice: d, success, crash };
+  });
 }
 
 function resolveDuel(race: RaceState, d: Duel): void {

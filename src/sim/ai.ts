@@ -1,4 +1,4 @@
-import { chance, rand } from './rng';
+import { rand } from './rng';
 import { stintCost, tyreRuleOk, wearPerLap } from './model';
 import type { Car, DuelAttack, DuelDefend, Mode, RaceState, Tyre } from './types';
 import { CONSERVE, DRY_TYRES, MAX_ATTACK, NORMAL, PUSH } from './types';
@@ -98,19 +98,34 @@ export function aiOnLap(race: RaceState, c: Car, done: number): void {
   c.mode = mode;
 }
 
+/** How likely an AI attacker picks each move (used for choices and for the risk preview). */
+export function attackChoiceOdds(c: Car, paceAdv: number): Record<DuelAttack, number> {
+  const wait = c.cond < 0.3 && paceAdv < 0.3 ? 0.54 : 0.08;
+  const outside = (1 - wait) * (0.33 + c.ai.aggression * 0.16);
+  return { inside: 1 - wait - outside, outside, wait };
+}
+
+/** How likely an AI defender picks each move. */
+export function defendChoiceOdds(paceDisadvantage: number): Record<DuelDefend, number> {
+  const letGo = paceDisadvantage > 1.5 ? 0.62 : 0.06;
+  return { coverInside: (1 - letGo) * 0.53, coverOutside: (1 - letGo) * 0.47, letGo };
+}
+
+function pickWeighted<K extends string>(c: Car, odds: Record<K, number>): K {
+  let r = rand(c.rng);
+  const keys = Object.keys(odds) as K[];
+  for (const k of keys) {
+    r -= odds[k];
+    if (r < 0) return k;
+  }
+  return keys[keys.length - 1];
+}
+
 /** Duel choices for AI (and humans who did not answer in time / use auto duels). */
 export function aiAttack(c: Car, paceAdv: number): DuelAttack {
-  if (c.cond < 0.3 && paceAdv < 0.3 && chance(c.rng, 0.5)) return 'wait';
-  const r = rand(c.rng);
-  const outside = 0.3 + c.ai.aggression * 0.15;
-  if (r < 0.08) return 'wait';
-  return r < 0.08 + outside ? 'outside' : 'inside';
+  return pickWeighted(c, attackChoiceOdds(c, paceAdv));
 }
 
 export function aiDefend(c: Car, paceDisadvantage: number): DuelDefend {
-  // much slower (other strategy): don't lose time fighting
-  if (paceDisadvantage > 1.5 && chance(c.rng, 0.6)) return 'letGo';
-  const r = rand(c.rng);
-  if (r < 0.06) return 'letGo';
-  return r < 0.06 + 0.5 ? 'coverInside' : 'coverOutside';
+  return pickWeighted(c, defendChoiceOdds(paceDisadvantage));
 }
