@@ -329,4 +329,35 @@ export class TrackView {
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawRain(race.rainNow);
   }
+
+  /** Hot Lap: one car alone, camera following it; the next key corner is highlighted. */
+  drawHotLap(f: number, color: string, label: string, wetness: number, nextCorner: number | null, rain: number): void {
+    const c = this.ctx;
+    const [px, py] = this.xy(f, 0);
+    const k = 0.15;
+    this.cam.x += (px - this.cam.x) * k;
+    this.cam.y += (py - this.cam.y) * k;
+    this.cam.z += (2.1 - this.cam.z) * k;
+    this.carScale = 1 / Math.sqrt(this.cam.z);
+    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    c.fillStyle = '#0d1a13';
+    c.fillRect(0, 0, this.w, this.h);
+    c.translate(this.w / 2, this.h / 2);
+    c.scale(this.cam.z, this.cam.z);
+    c.translate(-this.cam.x, -this.cam.y);
+    this.drawTrack(wetness, true, false);
+    if (nextCorner !== null) {
+      const [cx, cy] = this.xy(this.track.corners[nextCorner].at, 0);
+      c.beginPath();
+      c.arc(cx, cy, this.tw * 1.4, 0, Math.PI * 2);
+      c.strokeStyle = '#ffd200';
+      c.lineWidth = 3 * this.carScale;
+      c.setLineDash([6 * this.carScale, 5 * this.carScale]);
+      c.stroke();
+      c.setLineDash([]);
+    }
+    this.drawCar(px, py, color, label, true);
+    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.drawRain(rain);
+  }
 }

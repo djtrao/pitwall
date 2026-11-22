@@ -8,3 +8,4 @@ export * from './teams';
 export * from './grid';
 export * from './ai';
 export * from './race';
+export * from './quali';
