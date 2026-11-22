@@ -196,6 +196,24 @@ describe('safety car (7.6)', () => {
   });
 });
 
+describe('time penalties', () => {
+  it('a car that crosses the line first can lose the win to a penalty', () => {
+    const a = humanCar('a-1', { carPace: -1, startTyre: 'S' });
+    const b = humanCar('b-1', { startTyre: 'S' });
+    const r = createRace({ seed: 3, track: RHEIN, cars: [a, b], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
+    // both stop once (rule ok); car a gets a big penalty for an unsafe release
+    applyCommand(r, { type: 'pit', car: 'a-1', tyre: 'M' });
+    applyCommand(r, { type: 'pit', car: 'b-1', tyre: 'M' });
+    r.cars[0].penalty = 60;
+    simulate(r);
+    const res = results(r);
+    const win = r.events.find((e) => e.kind === 'win')!;
+    expect(win.car).toBe('a-1'); // first over the line …
+    expect(win.data?.penalty).toBe(60);
+    expect(res[0].car.id).toBe('b-1'); // … but the result counts the penalty
+  });
+});
+
 describe('damage', () => {
   it('a broken engine costs top speed, a broken wing too', () => {
     const r = soloRace();

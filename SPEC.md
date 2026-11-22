@@ -63,14 +63,14 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** o
 
 1. Choose a tyre (Soft, Medium, Hard, Rain). A second run on the same compound as the first gets +0.2 s (used tyres).
 2. The car drives around the track view. Before each of the 3 key corners, the player chooses how hard to go (3 seconds to choose, default Safe).
-3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. Send it! leaves only about 0.1 s (Pro) to 0.15 s (Rookie).
+3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. More risk also means a faster marker (braking later): Safe ×1, Attack ×1.25, Send it! ×1.6. Send it! leaves only about 0.05 s (Pro) to 0.08 s (Rookie).
 4. After the lap: lap time, position on the provisional leaderboard, and a short comment ("Great lap!", "Lap deleted – track limits").
 
 | Choice | Green zone width | Hit green | Hit yellow | Miss |
 | --- | --- | --- | --- | --- |
 | Safe | 40% of bar | 0 s | +0.3 s | +0.5 s |
 | Attack | 25% of bar | −0.25 s | +0.3 s | +1.2 s |
-| Send it! | 12% of bar | −0.5 s | +0.4 s | 50%: lap deleted, else +2.0 s |
+| Send it! | 8% of bar | −0.5 s | +0.4 s | 50%: lap deleted, else +2.0 s |
 
 **Modifiers**
 
@@ -195,7 +195,7 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 - **Driver card:** position, tyre and condition bar, last lap, gap ahead and behind, buttons for the 4 driving modes, tyre choice + BOX button (pits at the end of the lap, can be cancelled), warnings (two-compound rule, worn tyres, damage).
 - **Duel close-up:** the track view changes to a close-up of the two cars with the five choices, their chances and risk symbols, and a 6-second countdown bar; then the animation.
 - Big touch targets (at least 44 px), readable text for 11-year-olds, short words, colour plus icons (not colour alone).
-- Results screen with positions gained or lost, pit stops, penalties, points; then the championship tables. A season-end screen with the champion.
+- Results screen with positions gained or lost, pit stops, penalties, points; then the championship tables. Every time penalty shows its reason and the position in which the car crossed the line ("crossed the line P1 · +5 s released too early"). An open penalty is shown during the race in the driver card and the timing tower. A season-end screen with the champion.
 - Sounds (engine hum, radio beep, "Box box") as an optional later step.
 
 ## 9. Multiplayer details

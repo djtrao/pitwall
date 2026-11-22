@@ -351,7 +351,7 @@ function finishCar(race: RaceState, c: Car): void {
     c.penalty += race.tuning.rules.twoCompoundPenalty;
     emit(race, 'penalty', c, undefined, { seconds: race.tuning.rules.twoCompoundPenalty });
   }
-  emit(race, first ? 'win' : 'finish', c);
+  emit(race, first ? 'win' : 'finish', c, undefined, c.penalty ? { penalty: c.penalty } : undefined);
 }
 
 /* ----------------------------- duels ------------------------------ */
