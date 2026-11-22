@@ -18,14 +18,14 @@ A Formula 1 team-manager game for phones (1–4 players). See [SPEC.md](SPEC.md)
 
 ```
 src/sim/        the race engine (pure TypeScript, no browser code – also runs on the server later)
-  tuning.ts     ALL balance numbers in one place (defaults = SPEC.md values)
-  model.ts      lap time, tyre wear, weather penalties, mistakes, fuel projection
+  tuning.ts     ALL balance numbers in one place (SPEC.md values, tuned)
+  model.ts      lap time, tyre wear, weather penalties, mistakes
   race.ts       the race loop: createRace(), step(), applyCommand(), results()
   ai.ts         AI pit stops, rain calls, driving modes, duel choices
   weather.ts    rain timeline and forecasts
   tracks.ts     tracks (3 now, 8 in milestone 5)
   teams.ts      fictional AI teams, points
-  grid.ts       building the 12-car field, fuel options, stand-in qualifying
+  grid.ts       building the 12-car field, stand-in qualifying
 src/screens/    start screen, race screen, results
 src/ui/         track drawing and small helpers
 src/i18n.ts     all UI text, German and English
