@@ -54,6 +54,7 @@ export function createRace(cfg: RaceConfig): RaceState {
       mode: NORMAL,
       pitPlan: null,
       pitTimer: 0,
+      pitTotal: 0,
       pitTyre: null,
       stops: 0,
       loss: 0,
@@ -269,6 +270,7 @@ export function step(race: RaceState, realDt = 0.1): void {
       c.pitTyre = c.pitPlan;
       c.pitPlan = null;
       c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0);
+      c.pitTotal = c.pitTimer;
       c.stops++;
       c.closeTime = 0;
       c.closeTo = null;
