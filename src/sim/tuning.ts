@@ -106,6 +106,25 @@ export const DEFAULT_TUNING = {
     passMargin: 0.2,
   },
 
+  /** Damage: what a broken front wing or engine does until it is repaired in the pits. */
+  damage: {
+    /** Engine: less top speed. */
+    enginePace: 1.0,
+    enginePitExtra: 8,
+    /** Chance of engine damage from contact / going off / a spin in a duel. */
+    engineFromCrash: 0.2,
+    engineFromOff: 0.15,
+    engineFromSpin: 0.05,
+    /** Broken wing: driving mistakes more likely, duel risks higher. */
+    wingMistakes: 1.5,
+    wingRisk: 1.6,
+    /** Even a careful move gets some crash risk with a broken wing. */
+    wingBaseRisk: 0.03,
+    /** Pass chance change for the damaged car (attacker − / defender +). */
+    wingPass: 0.08,
+    enginePass: 0.15,
+  },
+
   pit: {
     /** Average time the car stands still (s, F1 scale) – already part of the track pit loss. */
     avgStop: 2.6,

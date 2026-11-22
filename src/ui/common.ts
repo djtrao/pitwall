@@ -23,19 +23,3 @@ export function shortName(name: string): string {
 }
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-
-export interface Team {
-  name: string;
-  color: string;
-  drivers: [{ name: string; num: number }, { name: string; num: number }];
-}
-
-/** Until the team editor exists (milestone 5). */
-export const DEFAULT_TEAM: Team = {
-  name: 'Basel Rockets',
-  color: '#ffd200',
-  drivers: [
-    { name: 'Kenny Junior', num: 7 },
-    { name: 'Alex Speed', num: 27 },
-  ],
-};

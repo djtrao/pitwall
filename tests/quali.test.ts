@@ -7,6 +7,8 @@ import {
   dryWeather,
   gridFromQualifying,
   hitAt,
+  markerAt,
+  randomCentre,
   hotLapTime,
   leaderboard,
   makeRng,
@@ -15,7 +17,7 @@ import {
   zonesFor,
   type QualiRun,
 } from '../src/sim';
-import { shuffledWheels } from '../src/ui/pitgame';
+import { pickSpots, shuffledWheels } from '../src/ui/pitgame';
 import { humanCar, RHEIN } from './helpers';
 
 const T = makeTuning();
@@ -38,6 +40,32 @@ describe('Hot Lap zones (section 6)', () => {
     expect(hitAt(0.5 + z.green + 0.01, z)).toBe('yellow');
     expect(hitAt(0.02, z)).toBe('miss');
     expect(hitAt(null, z)).toBe('miss');
+  });
+});
+
+describe('Hot Lap timing is a real challenge', () => {
+  /** How long (ms) the marker stays in the green zone. */
+  function greenWindow(risk: 0 | 1 | 2, centre: number, d: 'rookie' | 'pro'): number {
+    const z = zonesFor(risk, 'M', 0, centre);
+    let inside = 0;
+    for (let ms = 0; ms < 3000; ms++) if (hitAt(markerAt(ms / 1000, d), z) === 'green') inside++;
+    return inside;
+  }
+  it('Send it! gives only about a tenth of a second for Pro, a bit more for Rookies', () => {
+    for (const c of [0.3, 0.5, 0.72]) {
+      expect(greenWindow(2, c, 'pro')).toBeLessThan(120);
+      expect(greenWindow(2, c, 'rookie')).toBeLessThan(170);
+    }
+  });
+  it('Safe stays easy-ish', () => {
+    expect(greenWindow(0, 0.5, 'rookie')).toBeGreaterThan(350);
+  });
+  it('the braking point moves around and the marker speeds up', () => {
+    expect(randomCentre(0)).toBeCloseTo(QUALI.centreMin);
+    expect(randomCentre(0.999)).toBeCloseTo(QUALI.centreMax, 2);
+    const early = markerAt(0.2, 'pro') - markerAt(0.1, 'pro');
+    const late = markerAt(0.8, 'pro') - markerAt(0.7, 'pro');
+    expect(late).toBeGreaterThan(early * 1.5);
   });
 });
 
@@ -118,5 +146,16 @@ describe('pit stop game', () => {
       seen.add(last);
     }
     expect(seen.size).toBeGreaterThan(15); // 24 possible orders
+  });
+  it('picks 4 of the 8 spots, always including damaged parts, in a random order', () => {
+    const all = new Set<string>();
+    for (let i = 0; i < 300; i++) {
+      const s = pickSpots();
+      expect(s).toHaveLength(4);
+      expect(new Set(s).size).toBe(4);
+      s.forEach((x) => all.add(x));
+      expect(pickSpots(['fw', 'en'])).toEqual(expect.arrayContaining(['fw', 'en']));
+    }
+    expect(all.size).toBe(8);
   });
 });

@@ -110,6 +110,8 @@ export interface Car extends CarSetup {
   loss: number;
   flatSpot: boolean;
   wingDamage: boolean;
+  /** Engine damaged: less top speed until repaired in the pits. */
+  engineDamage: boolean;
   penalty: number;
   /** Current lap-time noise. */
   noise: number;
@@ -188,6 +190,7 @@ export type EventKind =
   | 'pitStopTime'
   | 'unsafeRelease'
   | 'wingDamage'
+  | 'engineDamage'
   | 'tyresWorn'
   | 'penalty'
   | 'win'

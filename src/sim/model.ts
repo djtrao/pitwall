@@ -41,6 +41,7 @@ export function carLapTime(c: Car, track: Track, wetness: number, t: Tuning): nu
   lt += c.noise;
   if (c.flatSpot) lt += t.mistakes.flatSpotPace;
   if (c.wingDamage) lt += t.duel.wingPace;
+  if (c.engineDamage) lt += t.damage.enginePace;
   return lt;
 }
 
@@ -48,6 +49,7 @@ export function carLapTime(c: Car, track: Track, wetness: number, t: Tuning): nu
 export function mistakeChance(c: Car, wetness: number, t: Tuning): number {
   const m = t.mistakes;
   let p = t.modes[c.mode].mistake;
+  if (c.wingDamage) p *= t.damage.wingMistakes;
   if (c.cond < m.wornBelow) p *= 1 + ((m.wornBelow - c.cond) / m.wornBelow) * (m.wornMax - 1);
   if (c.tyre !== 'W' && wetness > m.wetFrom) {
     const k = Math.min(1, (wetness - m.wetFrom) / (m.wetFull - m.wetFrom));
