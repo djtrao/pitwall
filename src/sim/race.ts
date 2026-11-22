@@ -2,7 +2,7 @@ import { aiAttack, aiDefend, aiOnLap, attackChoiceOdds, defendChoiceOdds } from 
 import { carLapTime, mistakeChance, tyreRuleOk, wearPerLap } from './model';
 import { chance, clamp, gauss, int, makeRng, rand, range } from './rng';
 import { makeTuning, type Tuning } from './tuning';
-import type { Car, Command, Duel, DuelAttack, DuelDefend, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
+import type { Car, Command, Duel, DuelAttack, DuelDefend, DuelOutcome, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
 import { NORMAL } from './types';
 import { generateWeather } from './weather';
 
@@ -55,6 +55,8 @@ export function createRace(cfg: RaceConfig): RaceState {
       pitPlan: null,
       pitTimer: 0,
       pitTotal: 0,
+      pitAwait: false,
+      pitHold: 0,
       pitTyre: null,
       stops: 0,
       loss: 0,
@@ -138,7 +140,7 @@ function deploySafetyCar(race: RaceState, laps: number): void {
     c.closeTime = 0;
     c.closeTo = null;
   }
-  for (const d of race.duels) if (!d.resolved) finishDuel(race, d, 'wait', false);
+  for (const d of race.duels) if (d.state !== 'done') cancelDuel(d);
   emit(race, 'safetyCar', undefined, undefined, { laps });
   for (const c of race.cars) if (c.human && c.status === 'running') emit(race, 'boxNow', c);
 }
@@ -173,6 +175,12 @@ export function step(race: RaceState, realDt = 0.1): void {
   for (const c of race.cars) {
     if (c.status !== 'pit') continue;
     c.pitTimer -= dt;
+    if (c.pitTimer <= 0 && c.pitAwait) {
+      // the player is still playing the pit stop game: wait a little, then the crew does an average stop
+      c.pitHold += realDt;
+      if (c.pitHold < t.pit.maxHold) continue;
+      c.pitAwait = false;
+    }
     if (c.pitTimer <= 0) {
       c.pitTimer = 0;
       c.status = 'running';
@@ -270,11 +278,20 @@ export function step(race: RaceState, realDt = 0.1): void {
       c.pitTyre = c.pitPlan;
       c.pitPlan = null;
       c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0);
+      // team mate already in the box: wait behind him
+      if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) c.pitTimer += t.pit.doubleStack;
+      const baseLoss = c.pitTimer;
+      c.pitHold = 0;
+      c.pitAwait = !!c.pitGame && c.human && !c.autopilot;
+      if (!c.pitAwait) {
+        // crew performance: usually close to average, sometimes a fumble
+        c.pitTimer += gauss(c.rng) * t.pit.crewSpread + (chance(c.rng, t.pit.crewFumble) ? t.pit.fumbleLoss : 0);
+      }
       c.pitTotal = c.pitTimer;
       c.stops++;
       c.closeTime = 0;
       c.closeTo = null;
-      emit(race, 'pitIn', c, undefined, { tyre: c.pitTyre, loss: Math.round(c.pitTimer * 10) / 10 });
+      emit(race, 'pitIn', c, undefined, { tyre: c.pitTyre, loss: Math.round(baseLoss * 10) / 10 });
       continue;
     }
     if (c.human) {
@@ -338,22 +355,28 @@ function finishCar(race: RaceState, c: Car): void {
 /* ----------------------------- duels ------------------------------ */
 
 const pairKey = (a: Car, b: Car) => (a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`);
+const carById = (race: RaceState, id: string) => race.cars.find((c) => c.id === id)!;
+const asksHuman = (c: Car) => c.human && !c.autoDuel && !c.autopilot;
 
 function startDuel(race: RaceState, att: Car, def: Car): void {
   const key = pairKey(att, def);
   if ((race.duelCooldown[key] ?? -1) > att.dist) return;
   if (att.duelLap === att.lap || def.duelLap === def.lap) return;
-  if (race.duels.some((d) => !d.resolved && (d.attacker === att.id || d.defender === att.id || d.attacker === def.id || d.defender === def.id))) return;
+  const busy = (id: string) => race.duels.some((d) => d.state !== 'done' && (d.attacker === id || d.defender === id));
+  if (busy(att.id) || busy(def.id)) return;
   const adv = def.lapTime - att.lapTime;
+  const lastLap = att.lap >= race.track.laps - 1;
   const duel: Duel = {
     id: race.nextId++,
     attacker: att.id,
     defender: def.id,
     lap: leaderLap(race),
+    at: att.dist,
     deadline: race.realTime + race.tuning.duel.answerSeconds,
-    attack: att.human && !att.autoDuel && !att.autopilot ? null : aiAttack(att, adv),
-    defend: def.human && !def.autoDuel && !def.autopilot ? null : aiDefend(def, adv),
-    resolved: false,
+    attack: asksHuman(att) ? null : aiAttack(att, adv, lastLap),
+    defend: asksHuman(def) ? null : aiDefend(def, adv),
+    prompted: asksHuman(att) || asksHuman(def),
+    state: 'choosing',
   };
   race.duels.push(duel);
   att.duelLap = att.lap;
@@ -361,136 +384,186 @@ function startDuel(race: RaceState, att: Car, def: Car): void {
   att.closeTime = 0;
   race.duelCooldown[key] = att.dist + 1;
   if (att.human || def.human) emit(race, 'duelStart', att, def, { duel: duel.id });
+  // AI-only duels are decided at once
+  if (!duel.prompted) decideDuel(race, duel);
 }
 
 function resolveDuels(race: RaceState): void {
   for (const d of race.duels) {
-    if (d.resolved) continue;
-    if ((d.attack && d.defend) || race.realTime >= d.deadline) resolveDuel(race, d);
+    if (d.state === 'choosing' && ((d.attack !== null && d.defend !== null) || race.realTime >= d.deadline)) decideDuel(race, d);
+    if (d.state === 'showing' && race.realTime >= (d.applyAt ?? 0)) applyDuel(race, d);
   }
   // keep the list short
-  if (race.duels.length > 40) race.duels = race.duels.filter((d) => !d.resolved || race.realTime - d.deadline < 10);
+  if (race.duels.length > 40) race.duels = race.duels.filter((d) => d.state !== 'done' || race.realTime - d.deadline < 10);
 }
 
-function finishDuel(race: RaceState, d: Duel, outcome: NonNullable<Duel['outcome']>, notify = true): void {
-  d.resolved = true;
-  d.outcome = outcome;
-  if (!notify) return;
-  const att = race.cars.find((c) => c.id === d.attacker)!;
-  const def = race.cars.find((c) => c.id === d.defender)!;
-  if (outcome === 'wait' && (att.human || def.human)) emit(race, 'duelWait', att, def);
+function cancelDuel(d: Duel): void {
+  d.state = 'done';
+  d.outcome = 'cancelled';
+}
+
+/** Pass chance (section 7.5 as changed after milestone 2): level against level, track and pace. */
+function passChance(t: Tuning['duel'], overtaking: number, a: DuelAttack, d: DuelDefend, adv: number): number {
+  const bonus = Math.min(t.paceBonusMax, Math.max(-t.paceBonusMax, t.paceBonusPer03 * (adv / 0.3)));
+  const ot = overtaking / 0.5;
+  if (a === 4) return clamp(t.attackPass[4] * ot + bonus * 0.5, 0.03, t.allIn.maxPass);
+  return clamp((t.attackPass[a] - t.defendCut[d]) * ot + bonus, 0.02, t.maxPass);
 }
 
 /**
- * Pass and crash chance of a duel (section 7.5). `adv` = attacker pace advantage in s per lap.
+ * Chances of every outcome for a pair of choices. All values add up to 1.
  */
-export function duelOdds(
+export function duelOutcomes(
   tuning: Tuning,
   overtaking: number,
-  attack: DuelAttack,
-  defend: DuelDefend,
+  a: DuelAttack,
+  d: DuelDefend,
   adv: number,
-): { pass: number; crash: number } {
+): Record<'pass' | 'fail' | 'crash' | 'spin' | 'off' | 'wait', number> {
   const t = tuning.duel;
-  if (attack === 'wait') return { pass: 0, crash: 0 };
-  if (defend === 'letGo') return { pass: 1, crash: 0 };
-  const col = defend === 'coverInside' ? 0 : 1;
-  const crash = t.crash[attack][col];
-  const p = t.pass[attack][col] * (overtaking / 0.5) + t.paceBonusPer03 * (adv / 0.3);
-  return { pass: clamp(p, 0, Math.min(t.maxPass, 1 - crash)), crash };
+  const out = { pass: 0, fail: 0, crash: 0, spin: 0, off: 0, wait: 0 };
+  if (a === 0) return { ...out, wait: 1 };
+  if (d === 0) return { ...out, pass: 1 };
+  if (a === 4) {
+    const pass = passChance(t, overtaking, a, d, adv);
+    const contact = Math.min(1 - pass, t.defendRisk[d]);
+    const rest = 1 - pass - contact;
+    const punished = rest * t.allIn.punish;
+    out.pass = pass;
+    out.spin = punished * t.allIn.spin;
+    out.off = punished * t.allIn.off;
+    out.crash = contact + punished * (1 - t.allIn.spin - t.allIn.off);
+    out.fail = rest - punished;
+    return out;
+  }
+  const crash = t.attackRisk[a] + t.defendRisk[d] + (a >= 3 && d >= 3 ? t.bothHard : 0);
+  const pass = Math.min(passChance(t, overtaking, a, d, adv), 1 - crash);
+  return { ...out, crash, pass, fail: 1 - crash - pass };
+}
+
+/** Kept for older callers: pass and crash chance of a pair of choices. */
+export function duelOdds(tuning: Tuning, overtaking: number, a: DuelAttack, d: DuelDefend, adv: number) {
+  const o = duelOutcomes(tuning, overtaking, a, d, adv);
+  return { pass: o.pass, crash: o.crash + o.spin + o.off };
 }
 
 export interface DuelOption {
   choice: DuelAttack | DuelDefend;
   /** Attacker: chance to get past. Defender: chance to stay ahead. */
   success: number;
-  crash: number;
+  /** Chance that something bad happens to this car (crash, spin, going off). */
+  risk: number;
 }
 
 /**
- * What each choice is likely to bring for `carId` in this duel, averaged over what the
- * opponent will probably do. Used for the chance and risk symbols in the duel prompt.
+ * What each level is likely to bring for `carId` in this duel, averaged over what the
+ * opponent will probably choose. Used for the chances and risk symbols in the duel prompt.
  */
 export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOption[] {
-  const att = race.cars.find((c) => c.id === duel.attacker)!;
-  const def = race.cars.find((c) => c.id === duel.defender)!;
+  const att = carById(race, duel.attacker);
+  const def = carById(race, duel.defender);
   const adv = def.lapTime - att.lapTime;
   const ot = race.track.overtaking;
+  const levels = [0, 1, 2, 3, 4] as const;
   if (carId === att.id) {
     const opp = defendChoiceOdds(adv);
-    return (['inside', 'outside', 'wait'] as DuelAttack[]).map((a) => {
+    return levels.map((a) => {
       let success = 0;
-      let crash = 0;
-      for (const [d, p] of Object.entries(opp) as [DuelDefend, number][]) {
-        const o = duelOdds(race.tuning, ot, a, d, adv);
-        success += p * o.pass;
-        crash += p * o.crash;
-      }
-      return { choice: a, success, crash };
+      let risk = 0;
+      levels.forEach((d) => {
+        const o = duelOutcomes(race.tuning, ot, a, d, adv);
+        success += opp[d] * o.pass;
+        risk += opp[d] * (o.crash + o.spin + o.off);
+      });
+      return { choice: a, success, risk };
     });
   }
-  const opp = attackChoiceOdds(att, adv);
-  return (['coverInside', 'coverOutside', 'letGo'] as DuelDefend[]).map((d) => {
+  const opp = attackChoiceOdds(att, adv, att.lap >= race.track.laps - 1);
+  return levels.map((d) => {
     let success = 0;
-    let crash = 0;
-    for (const [a, p] of Object.entries(opp) as [DuelAttack, number][]) {
-      const o = duelOdds(race.tuning, ot, a, d, adv);
-      success += p * (1 - o.pass - o.crash);
-      crash += p * o.crash;
-    }
-    return { choice: d, success, crash };
+    let risk = 0;
+    levels.forEach((a) => {
+      const o = duelOutcomes(race.tuning, ot, a, d, adv);
+      success += opp[a] * (1 - o.pass - o.crash);
+      risk += opp[a] * o.crash;
+    });
+    return { choice: d, success, risk };
   });
 }
 
-function resolveDuel(race: RaceState, d: Duel): void {
-  const t = race.tuning.duel;
-  const att = race.cars.find((c) => c.id === d.attacker)!;
-  const def = race.cars.find((c) => c.id === d.defender)!;
+/** Both have chosen (or time is up): roll the outcome. It counts after the animation. */
+function decideDuel(race: RaceState, d: Duel): void {
+  const att = carById(race, d.attacker);
+  const def = carById(race, d.defender);
   const adv = def.lapTime - att.lapTime;
-  const attack: DuelAttack = d.attack ?? aiAttack(att, adv);
-  const defend: DuelDefend = d.defend ?? aiDefend(def, adv);
-  d.attack = attack;
-  d.defend = defend;
+  if (d.attack === null) d.attack = aiAttack(att, adv, att.lap >= race.track.laps - 1);
+  if (d.defend === null) d.defend = aiDefend(def, adv);
+  const o = duelOutcomes(race.tuning, race.track.overtaking, d.attack, d.defend, adv);
+  let r = rand(race.rng);
+  let outcome: DuelOutcome = 'fail';
+  for (const k of ['wait', 'pass', 'crash', 'spin', 'off', 'fail'] as const) {
+    if (r < o[k]) {
+      outcome = k;
+      break;
+    }
+    r -= o[k];
+  }
+  d.outcome = outcome;
+  if (d.prompted) {
+    d.state = 'showing';
+    d.applyAt = race.realTime + race.tuning.duel.showSeconds;
+  } else applyDuel(race, d);
+}
 
-  // the situation may have changed while waiting for answers
+function applyDuel(race: RaceState, d: Duel): void {
+  const t = race.tuning.duel;
+  const att = carById(race, d.attacker);
+  const def = carById(race, d.defender);
+  d.state = 'done';
+  // the situation may have changed (pit stop, safety car, finish)
   const gap = (def.dist - att.dist) * att.lapTime;
   if (att.status !== 'running' || def.status !== 'running' || race.safetyCar.active || gap < 0 || gap > 1.5) {
-    finishDuel(race, d, 'wait', false);
+    d.outcome = 'cancelled';
     return;
   }
-  if (attack === 'wait') {
-    finishDuel(race, d, 'wait');
-    return;
-  }
-
-  let outcome: 'pass' | 'fail' | 'crash';
-  if (defend === 'letGo') outcome = 'pass';
-  else {
-    const { pass: p, crash } = duelOdds(race.tuning, race.track.overtaking, attack, defend, adv);
-    const r = rand(race.rng);
-    outcome = r < crash ? 'crash' : r < crash + p ? 'pass' : 'fail';
-  }
-
-  finishDuel(race, d, outcome, false);
-  if (outcome === 'pass') {
-    att.dist = def.dist + t.passMargin / att.lapTime;
-    def.closeTime = 0;
-    emit(race, 'pass', att, def, { attack, defend });
-  } else if (outcome === 'fail') {
-    att.loss += t.failLoss;
-    att.cond = Math.max(0, att.cond - t.failWear);
-    if (att.human || def.human) emit(race, 'duelFail', att, def, { attack, defend });
-  } else {
-    att.loss += t.crashLoss;
-    def.loss += t.crashLoss;
-    emit(race, 'crash', att, def);
-    if (chance(race.rng, t.wingChance)) {
-      att.wingDamage = true;
-      emit(race, 'wingDamage', att);
-    }
-    if (chance(race.rng, t.safetyCarOnCrash)) {
-      deploySafetyCar(race, int(race.rng, race.tuning.safetyCar.minLaps, race.tuning.safetyCar.maxLaps));
-    }
+  const humans = att.human || def.human;
+  const data = { attack: d.attack ?? 0, defend: d.defend ?? 0 };
+  switch (d.outcome) {
+    case 'wait':
+      if (humans) emit(race, 'duelWait', att, def, data);
+      return;
+    case 'pass':
+      att.dist = def.dist + t.passMargin / att.lapTime;
+      def.closeTime = 0;
+      emit(race, 'pass', att, def, data);
+      return;
+    case 'fail':
+      att.loss += t.failLoss;
+      att.cond = Math.max(0, att.cond - t.failWear);
+      if (humans) emit(race, 'duelFail', att, def, data);
+      return;
+    case 'spin':
+      att.loss += race.tuning.mistakes.spin;
+      emit(race, 'duelSpin', att, def, data);
+      return;
+    case 'off':
+      att.loss += race.tuning.mistakes.big;
+      att.cond = Math.max(0, att.cond - race.tuning.mistakes.flatSpotWear);
+      att.flatSpot = true;
+      emit(race, 'duelOff', att, def, data);
+      return;
+    case 'crash':
+      att.loss += t.crashLoss;
+      def.loss += t.crashLoss;
+      emit(race, 'crash', att, def, data);
+      if (chance(race.rng, d.attack === 4 ? 0.6 : t.wingChance)) {
+        att.wingDamage = true;
+        emit(race, 'wingDamage', att);
+      }
+      if (chance(race.rng, t.safetyCarOnCrash)) {
+        deploySafetyCar(race, int(race.rng, race.tuning.safetyCar.minLaps, race.tuning.safetyCar.maxLaps));
+      }
+      return;
   }
 }
 
@@ -517,13 +590,23 @@ export function applyCommand(race: RaceState, cmd: Command): boolean {
       if (cmd.on) car.mode = NORMAL;
       return true;
     case 'duel': {
-      const d = race.duels.find((x) => x.id === cmd.duel && !x.resolved);
-      if (!d) return false;
-      const attackChoices = ['inside', 'outside', 'wait'];
-      const defendChoices = ['coverInside', 'coverOutside', 'letGo'];
-      if (d.attacker === car.id && attackChoices.includes(cmd.choice)) d.attack = cmd.choice as DuelAttack;
-      else if (d.defender === car.id && defendChoices.includes(cmd.choice)) d.defend = cmd.choice as DuelDefend;
+      const d = race.duels.find((x) => x.id === cmd.duel && x.state === 'choosing');
+      if (!d || ![0, 1, 2, 3, 4].includes(cmd.choice)) return false;
+      if (d.attacker === car.id && d.attack === null) d.attack = cmd.choice as DuelAttack;
+      else if (d.defender === car.id && d.defend === null) d.defend = cmd.choice as DuelDefend;
       else return false;
+      return true;
+    }
+    case 'pitStop': {
+      if (car.status !== 'pit' || !car.pitAwait) return false;
+      const sec = clamp(Number(cmd.seconds) || race.tuning.pit.avgStop, 1.5, 15);
+      car.pitAwait = false;
+      car.pitTimer += sec - race.tuning.pit.avgStop;
+      emit(race, 'pitStopTime', car, undefined, { seconds: Math.round(sec * 10) / 10 });
+      if (cmd.unsafe) {
+        car.penalty += race.tuning.pit.unsafeReleasePenalty;
+        emit(race, 'unsafeRelease', car, undefined, { seconds: race.tuning.pit.unsafeReleasePenalty });
+      }
       return true;
     }
   }

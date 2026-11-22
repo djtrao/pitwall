@@ -194,19 +194,52 @@ table.res td:nth-child(2) { white-space: normal; }
 table.res td:nth-child(3) .pill { display: block; width: max-content; margin: 2px 0 0; }
 .drow .tb.on, .tb.on { background: #3a4458; color: #fff; border-color: #fff; }
 
-/* duel prompt on the track */
-.duel { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 4; background: rgba(10, 12, 17, 0.94);
-  border: 2px solid #ffd200; border-radius: 12px; padding: 6px; display: none; }
-.duel.show { display: block; animation: pop 0.2s ease-out; }
-@keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.duel-title { font-weight: 900; font-size: 16px; text-align: center; }
-.duel-time { height: 5px; background: #0e1118; border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
+/* duel close-up: covers the track while a duel of the followed car runs */
+.duelzone { position: absolute; inset: 0; z-index: 5; display: none; background: #1d3b23; border-radius: 12px; overflow: hidden; }
+.duelzone.show { display: block; animation: pop 0.25s ease-out; }
+.duelzone canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+@keyframes pop { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.duel { position: absolute; left: 6px; right: 6px; bottom: 6px; }
+.duel:empty { display: none; }
+.duel-title { font-weight: 900; font-size: 16px; text-align: center; text-shadow: 0 1px 3px #000; }
+.duel-time { height: 6px; background: rgba(0, 0, 0, 0.5); border-radius: 3px; margin: 3px 0 5px; overflow: hidden; }
 .duel-time i { display: block; height: 100%; background: #ffd200; width: 100%; }
-.duel-opts { display: flex; gap: 6px; }
-.duel-opts button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px; min-height: 56px; line-height: 1.15; }
-.dc-name { font-size: 15px; font-weight: 900; }
-.dc-chance { font-size: 12px; font-weight: 600; color: #c9d1dc; }
-.dc-risk { font-size: 11px; font-weight: 600; }
-.duel-opts button.risk-high { border-color: #a33; }
-.duel-opts button.risk-mid { border-color: #a83; }
+.duel-opts { display: flex; gap: 4px; }
+.duel-opts button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 1px;
+  min-height: 58px; line-height: 1.12; background: rgba(20, 24, 33, 0.92); }
+.dc-name { font-size: 13px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dc-chance { font-size: 11px; font-weight: 600; color: #c9d1dc; white-space: nowrap; }
+.dc-risk { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.duel-opts button.risk-2 { border-color: #a89533; }
+.duel-opts button.risk-3 { border-color: #b8742a; }
+.duel-opts button.risk-4 { border-color: #c33; background: rgba(60, 16, 16, 0.92); }
+
+/* pit stop game */
+.pitgame { position: absolute; inset: 0; z-index: 6; display: none; background: rgba(10, 12, 17, 0.93); border-radius: 12px;
+  flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; }
+.pitgame.show { display: flex; animation: pop 0.2s ease-out; }
+.pg-title { font-weight: 900; font-size: 17px; }
+.pg-hint { font-size: 13px; color: #c9d1dc; min-height: 17px; text-align: center; }
+.pg-car { position: relative; width: min(46vh, 60%, 230px); aspect-ratio: 1 / 1.25; max-height: 62%; }
+.pg-body { position: absolute; left: 30%; right: 30%; top: 6%; bottom: 6%; border-radius: 40% 40% 18% 18%;
+  background: linear-gradient(#e10600, #8a0400); box-shadow: 0 0 0 3px #222 inset; }
+.pg-body::before { content: ''; position: absolute; left: -38%; right: -38%; top: 2%; height: 7%; background: #222; border-radius: 3px; }
+.pg-body::after { content: ''; position: absolute; left: -30%; right: -30%; bottom: 0; height: 8%; background: #222; border-radius: 3px; }
+.pg-wheel { position: absolute; width: 26%; height: 26%; min-height: 44px; border-radius: 12px; background: #111; border: 3px solid #444; padding: 0; }
+.pg-fl { left: 0; top: 14%; } .pg-fr { right: 0; top: 14%; } .pg-rl { left: 0; bottom: 12%; } .pg-rr { right: 0; bottom: 12%; }
+.pg-wheel.lit { background: #ffd200; border-color: #fff; box-shadow: 0 0 18px #ffd200; animation: pulse 0.4s infinite; }
+.pg-wheel.done { background: #2a6; border-color: #5f5; }
+.pg-wheel.wrong { background: #c33; }
+.pg-light { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); width: 22%; aspect-ratio: 1; border-radius: 50%;
+  background: #222; border: 3px solid #555; }
+.pg-light.red { background: #e10600; box-shadow: 0 0 16px #e10600; }
+.pg-light.green { background: #2ecc40; box-shadow: 0 0 22px #2ecc40; }
+.pg-go { min-width: 140px; font-size: 20px; font-weight: 900; background: #1f6f33; border-color: #2ecc40; }
+.pg-go:disabled { opacity: 0.35; }
+.pg-result { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(10, 12, 17, 0.9); border-radius: 12px; gap: 4px; }
+.pg-result.show { display: flex; }
+.pg-result b { font-size: 30px; font-weight: 900; color: #ffd200; }
+.pg-result span { font-size: 18px; font-weight: 700; }
+.pg-result .bad { color: #ff7b7b; font-size: 15px; }
 .wx-fc span small { white-space: nowrap; }

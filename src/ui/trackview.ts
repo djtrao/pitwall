@@ -232,6 +232,21 @@ export class TrackView {
     c.fillRect(0, 0, this.w, this.h);
   }
 
+  /** What the track looks like at lap fraction f: a straight, a single corner or an S-bend. */
+  sceneAt(f: number): 'straight' | 'corner' | 'chicane' {
+    const heading = (a: number, b: number) => {
+      const [x1, y1] = this.xy(a);
+      const [x2, y2] = this.xy(b);
+      return Math.atan2(y2 - y1, x2 - x1);
+    };
+    const wrap = (x: number) => Math.atan2(Math.sin(x), Math.cos(x));
+    const d1 = wrap(heading(f, f + 0.03) - heading(f - 0.03, f));
+    const d2 = wrap(heading(f + 0.03, f + 0.06) - heading(f, f + 0.03));
+    if (Math.abs(d1) + Math.abs(d2) < 0.35) return 'straight';
+    if (Math.sign(d1) !== Math.sign(d2) && Math.abs(d1) > 0.12 && Math.abs(d2) > 0.12) return 'chicane';
+    return 'corner';
+  }
+
   /** Where to draw a car: on track, or on the pit lane while stopping. */
   private carPosition(car: Car, dist: number): { f: number; lat: number } {
     const k = Math.floor(dist);

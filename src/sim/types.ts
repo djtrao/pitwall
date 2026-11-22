@@ -72,6 +72,8 @@ export interface CarSetup {
   autopilot?: boolean;
   /** Human driver: resolve duels automatically. */
   autoDuel?: boolean;
+  /** A player plays the pit stop game for this car. */
+  pitGame?: boolean;
   ai?: AiProfile;
 }
 
@@ -98,6 +100,10 @@ export interface Car extends CarSetup {
   pitTimer: number;
   /** Length of the current pit stop (s), for the pit lane animation. */
   pitTotal: number;
+  /** Waiting for the pit stop game result. */
+  pitAwait: boolean;
+  /** Real seconds already waited for it. */
+  pitHold: number;
   pitTyre: Tyre | null;
   stops: number;
   /** Seconds still to lose from a mistake / failed attack / crash. */
@@ -124,20 +130,30 @@ export interface Car extends CarSetup {
   rng: Rng;
 }
 
-export type DuelAttack = 'inside' | 'outside' | 'wait';
-export type DuelDefend = 'coverInside' | 'coverOutside' | 'letGo';
+/** 0 Wait, 1 Careful, 2 Bold, 3 Risky, 4 All or nothing */
+export type DuelAttack = 0 | 1 | 2 | 3 | 4;
+/** 0 Let go, 1 Clean, 2 Hard, 3 Very hard, 4 Slam the door */
+export type DuelDefend = 0 | 1 | 2 | 3 | 4;
+export type DuelOutcome = 'pass' | 'fail' | 'crash' | 'spin' | 'off' | 'wait' | 'cancelled';
 
 export interface Duel {
   id: number;
   attacker: string;
   defender: string;
   lap: number;
+  /** Leader distance where it started (for choosing the animation scene). */
+  at: number;
   /** Real-time deadline (s) for human answers. */
   deadline: number;
   attack: DuelAttack | null;
   defend: DuelDefend | null;
-  resolved: boolean;
-  outcome?: 'pass' | 'fail' | 'crash' | 'wait';
+  /** A human had to choose (then the result counts only after the animation). */
+  prompted: boolean;
+  /** choosing → showing (animation) → done */
+  state: 'choosing' | 'showing' | 'done';
+  outcome?: DuelOutcome;
+  /** Real time when the result is applied. */
+  applyAt?: number;
 }
 
 export interface SafetyCarState {
@@ -166,7 +182,11 @@ export type EventKind =
   | 'pass'
   | 'duelFail'
   | 'duelWait'
+  | 'duelSpin'
+  | 'duelOff'
   | 'crash'
+  | 'pitStopTime'
+  | 'unsafeRelease'
   | 'wingDamage'
   | 'tyresWorn'
   | 'penalty'
@@ -229,4 +249,6 @@ export type Command =
   | { type: 'pit'; car: string; tyre: Tyre | null }
   | { type: 'duel'; duel: number; car: string; choice: DuelAttack | DuelDefend }
   | { type: 'autoDuel'; car: string; on: boolean }
+  /** Result of the pit stop game: standing time on the F1 scale (s) and whether the release was unsafe. */
+  | { type: 'pitStop'; car: string; seconds: number; unsafe: boolean }
   | { type: 'autopilot'; car: string; on: boolean };

@@ -2,50 +2,50 @@
 Races per comparison: 300. Tuning overrides: {}
 
 ## Race length at 1× (full field, random weather and safety car)
-  Rheinring  16 laps: 6.52 min (min 6.25, max 7.24)
-  Monte Sol  17 laps: 6.95 min (min 6.59, max 7.63)
-  Waldkurs   16 laps: 6.55 min (min 6.26, max 7.32)
-  → OK   6.2–7.6 min
+  Rheinring  16 laps: 6.57 min (min 6.31, max 7.10)
+  Monte Sol  17 laps: 7.14 min (min 6.68, max 8.07)
+  Waldkurs   16 laps: 6.67 min (min 6.32, max 7.23)
+  → MISS 6.3–8.1 min
 
 ## One stop vs two stops (dry, alone on track, Normal mode)
-  Rheinring  wear 1: best 1-stop S-7-M      1278.2 s | best 2-stop S-6-S-11-M     1280.0 s | 2-stop +1.8 s
-  → OK   2-stop is +1.8 s vs 1-stop
-  Waldkurs   wear 1.3: best 1-stop M-7-H      1381.8 s | best 2-stop M-6-S-11-S     1380.1 s | 2-stop -1.8 s
-  → OK   2-stop is -1.8 s vs 1-stop
-  Monte Sol  wear 0.8: best 1-stop S-8-M      1251.2 s | best 2-stop M-5-S-11-S     1252.6 s | 2-stop +1.4 s
+  Rheinring  wear 1: best 1-stop S-7-M      1290.7 s | best 2-stop S-6-S-11-M     1304.9 s | 2-stop +14.2 s
+  → OK   2-stop is +14.2 s vs 1-stop
+  Waldkurs   wear 1.3: best 1-stop H-9-M      1396.1 s | best 2-stop S-5-M-11-S     1408.3 s | 2-stop +12.2 s
+  (high wear: 2-stop +12.2 s vs 1-stop)
+  Monte Sol  wear 0.8: best 1-stop S-8-M      1262.9 s | best 2-stop S-6-M-11-S     1275.9 s | 2-stop +13.0 s
 
 ## Max Attack (Rheinring, plan S-7-M)
-  Max Attack the whole first stint: +5.6 s
-  → OK   +5.6 s
-  Max Attack 1 lap after the stop  : -0.1 s
-  Max Attack 2 laps after the stop : +0.5 s
-  Max Attack last 2 laps           : -1.7 s
+  Max Attack the whole first stint: +5.5 s
+  → OK   +5.5 s
+  Max Attack 1 lap after the stop  : -0.2 s
+  Max Attack 2 laps after the stop : +0.3 s
+  Max Attack last 2 laps           : -1.8 s
   Max Attack 1 lap before the stop : -0.3 s
-  Max Attack 2 laps before the stop: +0.4 s
-  Max Attack 3 laps after the stop : +1.3 s
-  → OK   best burst -1.7 s
+  Max Attack 2 laps before the stop: +0.2 s
+  Max Attack 3 laps after the stop : +1.0 s
+  → OK   best burst -1.8 s
 
 ## Push over a race vs all Normal (Rheinring)
-  push last 3 laps                                    : -1.9 s
-  push last 3 laps of each stint                      : -2.4 s
-  push first 3 laps of each stint                     : -0.2 s
-  push all race (same stop)                           : -1.3 s
-  push all race, best plan for it (M-6-S-11-S)        : -7.1 s
-  2-stop (S-6-S-11-M) + push last 3 of each stint     : -3.6 s
-  → OK   best policy -7.1 s
+  push last 3 laps                                    : -2.0 s
+  push last 3 laps of each stint                      : -2.5 s
+  push first 3 laps of each stint                     : -0.3 s
+  push all race (same stop)                           : -1.4 s
+  push all race, best plan for it (M-7-H)             : -5.0 s
+  2-stop (S-6-S-11-M) + push last 3 of each stint     : +8.8 s
+  → OK   best policy -5.0 s
 
 ## Rain call (Rheinring, rain from lap 7 to the end, crossover 31 % wetness)
-  rain 0.4: box at the crossover vs 3 laps late: good call is 9.0 s faster
+  rain 0.4: box at the crossover vs 3 laps late: good call is 9.1 s faster
   rain 0.6: box at the crossover vs 3 laps late: good call is 12.5 s faster
-  rain 0.8: box at the crossover vs 3 laps late: good call is 16.1 s faster
-  rain 1.0: box at the crossover vs 3 laps late: good call is 18.7 s faster
-  → OK   9 / 12 / 16 / 19 s (light → heavy), average 14.1 s
+  rain 0.8: box at the crossover vs 3 laps late: good call is 15.9 s faster
+  rain 1.0: box at the crossover vs 3 laps late: good call is 18.5 s faster
+  → OK   9 / 12 / 16 / 18 s (light → heavy), average 14.0 s
 
 ## Pit stop under the safety car (Rheinring, SC on lap 7 for 3 laps)
-  Alone: stop under SC (lap 7) vs normal stop after it (lap 11): SC stop is 6.7 s faster
-  (same two plans without any safety car: +2.7 s, so the SC itself is worth 4.0 s)
-  In the field (start P6): SC stop is 0.3 s faster
-  → MISS 4.0 s alone, 0.3 s in the field (normal stop costs 8.5 s)
+  Alone: stop under SC (lap 7) vs normal stop after it (lap 11): SC stop is 10.3 s faster
+  (same two plans without any safety car: +2.7 s, so the SC itself is worth 7.6 s)
+  In the field (start P6): SC stop is 10.3 s faster
+  → OK   7.6 s alone, 10.3 s in the field (normal stop costs 21 s)
 
 ## Hot Lap (by design, section 6)
   Perfect lap: 3 × "Send it!" in the green zone = −1.5 s; all-Safe in the green = 0 s.
@@ -55,20 +55,19 @@ Races per comparison: 300. Tuning overrides: {}
   Stand-in for players until the real screens exist:
   good = smart rain calls (crossover), solid tyre/pit logic, good Hot Laps (−0.6 s);
   bad  = late rain calls, never pushes, weak Hot Laps (+0.4 s).
-  good team: wins 16 % of races, average finish P4.8
-  bad team:  wins 2 % of races, average finish P7.9
-  → MISS good wins 16 %, bad average P7.9
+  good team: wins 34 % of races, average finish P5.4
+  bad team:  wins 16 % of races, average finish P6.2
+  → OK   good wins 34 %, bad average P6.2
 
 ## Summary
-  ✅ Race lasts 6–8 min at 1×: 6.2–7.6 min
-  ✅ Medium wear: 1-stop and 2-stop within ~3 s: 2-stop is +1.8 s vs 1-stop
-  ✅ High wear: 2 stops better: 2-stop is -1.8 s vs 1-stop
-  ✅ Max Attack for a whole stint loses time: +5.6 s
-  ✅ Short Max Attack bursts (1–3 laps) usually gain: best burst -1.7 s
-  ✅ Good use of Push gains 5–8 s: best policy -7.1 s
-  ✅ Good rain call beats a 3-laps-late one by 10–15 s: 9 / 12 / 16 / 19 s (light → heavy), average 14.1 s
-  ❌ A stop under the safety car gains clearly (≈ half a normal stop alone, more in the field): 4.0 s alone, 0.3 s in the field (normal stop costs 8.5 s)
+  ❌ Race lasts 6–8 min at 1×: 6.3–8.1 min
+  ✅ Dry race: one stop is usually best (two stops are rarer): 2-stop is +14.2 s vs 1-stop
+  ✅ Max Attack for a whole stint loses time: +5.5 s
+  ✅ Short Max Attack bursts (1–3 laps) usually gain: best burst -1.8 s
+  ✅ Good use of Push gains 5–8 s: best policy -5.0 s
+  ✅ Good rain call beats a 3-laps-late one by 10–15 s: 9 / 12 / 16 / 18 s (light → heavy), average 14.0 s
+  ✅ A stop under the safety car gains about 8–10 s: 7.6 s alone, 10.3 s in the field (normal stop costs 21 s)
   ✅ Perfect Hot Lap ≈ 1.5 s faster than all-Safe: 1.5 s (checked again when the mini-game exists, milestone 4)
-  ❌ Well-played team wins ~1 in 3; badly played finishes midfield or lower: good wins 16 %, bad average P7.9
+  ✅ Well-played team wins ~1 in 3; badly played finishes midfield or lower: good wins 34 %, bad average P6.2
 
-Done in 172 s.
+Done in 179 s.

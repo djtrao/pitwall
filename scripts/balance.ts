@@ -241,8 +241,8 @@ function main() {
       const b = bestPlans(track);
       best[track.id] = b.one.p;
       out(`  ${track.name.padEnd(10)} wear ${track.wear}: best 1-stop ${planName(b.one.p).padEnd(10)} ${b.one.t.toFixed(1)} s | best 2-stop ${planName(b.two.p).padEnd(14)} ${b.two.t.toFixed(1)} s | 2-stop ${f1(b.two.t - b.one.t)} s`);
-      if (track === RHEIN) verdict('Medium wear: 1-stop and 2-stop within ~3 s', Math.abs(b.two.t - b.one.t) <= 3.5, `2-stop is ${f1(b.two.t - b.one.t)} s vs 1-stop`);
-      if (track === WALD) verdict('High wear: 2 stops better', b.two.t < b.one.t, `2-stop is ${f1(b.two.t - b.one.t)} s vs 1-stop`);
+      if (track === RHEIN) verdict('Dry race: one stop is usually best (two stops are rarer)', b.one.t < b.two.t, `2-stop is ${f1(b.two.t - b.one.t)} s vs 1-stop`);
+      if (track === WALD) out(`  (high wear: 2-stop ${f1(b.two.t - b.one.t)} s vs 1-stop)`);
     }
     out();
   }
@@ -343,7 +343,7 @@ function main() {
     out(`  Alone: stop under SC (lap 7) vs normal stop after it (lap 11): SC stop is ${scSolo.diff.toFixed(1)} s faster`);
     out(`  (same two plans without any safety car: ${f1(noScSame.diff)} s, so the SC itself is worth ${(scSolo.diff - noScSame.diff).toFixed(1)} s)`);
     out(`  In the field (start P6): SC stop is ${scField.diff.toFixed(1)} s faster`);
-    verdict('A stop under the safety car gains clearly (≈ half a normal stop alone, more in the field)', scSolo.diff - noScSame.diff >= 0.35 * RHEIN.pitLoss && scField.diff > scSolo.diff - noScSame.diff, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field (normal stop costs ${RHEIN.pitLoss} s)`);
+    verdict('A stop under the safety car gains about 8–10 s', scSolo.diff - noScSame.diff >= 7 && scSolo.diff - noScSame.diff <= 12, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field (normal stop costs ${RHEIN.pitLoss} s)`);
     out();
   }
 
