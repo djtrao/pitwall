@@ -12,6 +12,8 @@ import {
   crossoverWetness,
   gridFromQualifying,
   hitAt,
+  markerAt,
+  randomCentre,
   hotLapTime,
   leaderboard,
   makeRng,
@@ -29,6 +31,7 @@ import {
   type Weather,
 } from '../sim';
 import { $, esc, shortName, tyreIcon, tyreName } from '../ui/common';
+import { fullscreenButton, wireFullscreen } from '../ui/fullscreen';
 import { TrackView } from '../ui/trackview';
 
 const TYRES: Tyre[] = ['S', 'M', 'H', 'W'];
@@ -82,6 +85,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   let nextCorner = 0;
   let corners: CornerResult[] = [];
   let risk: CornerRisk = 0;
+  let centre = 0.5;
   let phaseStart = 0;
   let tapPos: number | null = null;
   let running = true;
@@ -93,6 +97,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
       <div class="r-bar">
         <div class="r-lap"><span class="mut small">${esc(track.name)} · ${t('quali')}</span><b id="qstep"></b></div>
         <div class="r-wx"><span class="small">${wet > 5 ? t('qWet', { w: Math.round(wet) }) : t('qHowTo')}</span></div>
+        ${fullscreenButton(t('fullscreen'))}
       </div>
       <div class="r-tower" id="tower"></div>
       <div class="r-track" id="cvp">
@@ -106,6 +111,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   const tv = new TrackView($('cv') as HTMLCanvasElement, track);
   const onResize = () => requestAnimationFrame(() => tv.fit());
   window.addEventListener('resize', onResize);
+  const unwireFs = wireFullscreen(app, onResize);
 
   const current = () => order[step];
   const allRuns = () => {
@@ -203,13 +209,14 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     phase = 'timing';
     phaseStart = performance.now();
     tapPos = null;
-    const z = zonesFor(risk, tyre, wet);
+    centre = randomCentre(rngNext());
+    const z = zonesFor(risk, tyre, wet, centre);
     const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
     $('qov').innerHTML = `<div class="qtiming" id="qtap">
       <div class="duel-title">${RISK_ICON[risk]} ${t('qTap')}</div>
       <div class="qtbar">
-        <i class="y" style="left:${pct(0.5 - z.outer)};width:${pct(z.outer * 2)}"></i>
-        <i class="g" style="left:${pct(0.5 - z.green)};width:${pct(z.green * 2)}"></i>
+        <i class="y" style="left:${pct(z.centre - z.outer)};width:${pct(z.outer * 2)}"></i>
+        <i class="g" style="left:${pct(z.centre - z.green)};width:${pct(z.green * 2)}"></i>
         <b id="qmark"></b>
       </div></div>`;
     $('qtap').onpointerdown = (e) => {
@@ -220,10 +227,10 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     };
   }
 
-  const markerPos = () => Math.min(1, (performance.now() - phaseStart) / 1000 / QUALI.markerSeconds[difficulty]);
+  const markerPos = () => markerAt((performance.now() - phaseStart) / 1000, difficulty);
 
   function judge() {
-    const hit = hitAt(tapPos, zonesFor(risk, tyre, wet));
+    const hit = hitAt(tapPos, zonesFor(risk, tyre, wet, centre));
     const res = cornerResult(risk, hit, rngNext());
     corners.push(res);
     phase = 'feedback';
@@ -282,6 +289,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
 
   function finish() {
     running = false;
+    unwireFs();
     window.removeEventListener('resize', onResize);
     document.body.classList.remove('racing');
     onDone(gridFromQualifying(ctx.cars, [...aiRuns, ...myRuns]));

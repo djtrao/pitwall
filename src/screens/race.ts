@@ -18,7 +18,7 @@ import {
   type Tyre,
 } from '../sim';
 import { $, esc, shortName, tyreIcon, tyreName } from '../ui/common';
-import { canGoFullscreen, goFullscreen } from '../ui/fullscreen';
+import { fullscreenButton, wireFullscreen } from '../ui/fullscreen';
 import { DuelView } from '../ui/duelview';
 import { pitRating, runPitGame } from '../ui/pitgame';
 import { TrackView } from '../ui/trackview';
@@ -59,7 +59,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
         <div class="seg r-speed" id="spd">${[0, 1, 2, 4]
           .map((s) => `<button data-s="${s}" class="${s === 1 ? 'on' : ''}" aria-label="${s ? `${s}×` : t('pause')}">${s ? `${s}×` : '❚❚'}</button>`)
           .join('')}</div>
-        ${canGoFullscreen() ? `<button class="r-fs" id="fs" aria-label="${t('fullscreen')}">⛶</button>` : ''}
+        ${fullscreenButton(t('fullscreen'))}
       </div>
       <div class="r-tower" id="tower"></div>
       <div class="r-track" id="cvp">
@@ -91,7 +91,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     speed = Number(b.dataset.s);
     $('spd').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   };
-  if (canGoFullscreen()) $('fs').onclick = () => void goFullscreen().then(onResize);
+  const unwireFs = wireFullscreen(app, onResize);
 
   $('cards').onclick = (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
@@ -131,6 +131,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
 
   $('tores').onclick = () => {
     running = false;
+    unwireFs();
     window.removeEventListener('resize', onResize);
     screen.orientation?.removeEventListener?.('change', onResize);
     document.body.classList.remove('racing');
@@ -264,6 +265,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
         applyCommand(race, { type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: r.unsafe });
       },
       () => (pitPlaying = false),
+      [...(c.wingDamage ? (['fw'] as const) : []), ...(c.engineDamage ? (['en'] as const) : [])],
     );
   }
 
@@ -284,6 +286,9 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     const pos = st.indexOf(c);
     $(`cpos${i}`).textContent = `P${pos + 1}`;
     $(`cty${i}`).innerHTML = `${tyreIcon(c.tyre)} <b>${Math.round(c.cond * 100)}%</b>`;
+    // damage always visible in the card head (also in fullscreen)
+    $(`cdmg${i}`).innerHTML = damageBadges(c);
+    $(`cdmg${i}`).parentElement!.parentElement!.classList.toggle('damaged', c.wingDamage || c.engineDamage);
     const wb = $(`cwb${i}`);
     wb.style.width = `${Math.round(c.cond * 100)}%`;
     wb.style.background = c.cond > 0.5 ? '#3c3' : c.cond > 0.3 ? '#fc3' : '#f33';
@@ -318,6 +323,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       if (!tyreRuleOk(c.usedTyres) && !(c.pitPlan && !c.usedTyres.includes(c.pitPlan))) warn.push(t('warnRule'));
       if (c.status === 'running') {
         if (c.wingDamage) warn.push(t('warnWing'));
+        if (c.engineDamage) warn.push(t('warnEngine'));
         if (c.flatSpot) warn.push(t('warnFlat'));
       }
     }
@@ -359,7 +365,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       else if (c.status === 'finished' && leader.status === 'finished') gap = c.lap < leader.lap ? t('lapped') : `+${num(c.finishTime - leader.finishTime)}`;
       else if (leader.dist - c.dist >= 1) gap = t('lapped');
       else gap = `+${num(Math.max(0, (leader.dist - c.dist) * c.lapTime))}`;
-      const flag = c.status === 'running' && c.loss > 0 ? '⚠️' : c.pitPlan ? '📻' : '';
+      const flag = (c.wingDamage ? '🪛' : '') + (c.engineDamage ? '⚙️' : '') + (c.status === 'running' && c.loss > 0 ? '⚠️' : c.pitPlan ? '📻' : '');
       const followed = tv.followId === c.id ? ' follow' : '';
       return `<tr class="${isMine(c) ? 'me' : ''}${followed}" data-follow="${c.id}"><td class="p">${i + 1}</td>
         <td class="n"><span class="chip" style="background:${c.color}"></span><span class="nm">${esc(surname(c.name))}</span><span class="code">${shortName(c.name)}</span>${flag}</td>
@@ -425,6 +431,7 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       case 'duelFail': return carMine || otherMine ? msg('rDuelFail', {}, carMine || otherMine) : null;
       case 'crash': return msg('rCrash', {}, carMine || otherMine);
       case 'wingDamage': return msg('rWing');
+      case 'engineDamage': return msg('rEngine');
       case 'tyresWorn': {
         if (!car) return null;
         const key = `${car.id}-${car.stops}`;
@@ -467,6 +474,14 @@ function duelButton(level: number, success: number, risk: number, attacking: boo
   </button>`;
 }
 
+function damageBadges(c: Car): string {
+  const b: string[] = [];
+  if (c.wingDamage) b.push(`<span class="dmg" title="${t('dmgWing')}">🪛</span>`);
+  if (c.engineDamage) b.push(`<span class="dmg" title="${t('dmgEngine')}">⚙️</span>`);
+  if (c.flatSpot) b.push(`<span class="dmg minor" title="${t('dmgFlat')}">🛞</span>`);
+  return b.join('');
+}
+
 function surname(name: string): string {
   const w = name.trim().split(/\s+/);
   return w[w.length - 1] || name;
@@ -482,7 +497,7 @@ function cardHTML(c: Car, i: number): string {
   return `<div class="dcard" style="border-left-color:${c.color}">
     <div class="crow" data-act="follow" data-d="${i}" title="🎥">
       <span class="cpos" id="cpos${i}">P${c.grid}</span><span class="cname" title="${esc(c.name)}">#${c.num} ${esc(surname(c.name))}</span>
-      <span class="cty" id="cty${i}"></span><span class="cfollow" id="cfollow${i}">🎥</span>
+      <span class="cdmg" id="cdmg${i}"></span><span class="cty" id="cty${i}"></span><span class="cfollow" id="cfollow${i}">🎥</span>
     </div>
     <div class="wbar"><i id="cwb${i}"></i></div>
     <div class="cinfo" id="cinfo${i}"></div>

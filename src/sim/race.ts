@@ -62,6 +62,7 @@ export function createRace(cfg: RaceConfig): RaceState {
       loss: 0,
       flatSpot: false,
       wingDamage: false,
+      engineDamage: false,
       penalty: 0,
       noise: gauss(rng) * tuning.noise,
       lapTime: track.base,
@@ -191,6 +192,7 @@ export function step(race: RaceState, realDt = 0.1): void {
       if (!c.usedTyres.includes(c.tyre)) c.usedTyres.push(c.tyre);
       c.flatSpot = false;
       c.wingDamage = false;
+      c.engineDamage = false;
       emit(race, 'pitOut', c, undefined, { tyre: c.tyre });
     }
   }
@@ -277,7 +279,7 @@ export function step(race: RaceState, realDt = 0.1): void {
       c.status = 'pit';
       c.pitTyre = c.pitPlan;
       c.pitPlan = null;
-      c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0);
+      c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0) + (c.engineDamage ? t.damage.enginePitExtra : 0);
       // team mate already in the box: wait behind him
       if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) c.pitTimer += t.pit.doubleStack;
       const baseLoss = c.pitTimer;
@@ -402,12 +404,37 @@ function cancelDuel(d: Duel): void {
   d.outcome = 'cancelled';
 }
 
+/** How damage on either car changes a duel. */
+export interface DuelMods {
+  /** Multiplies the attacker's / defender's share of the crash risk. */
+  attRisk: number;
+  defRisk: number;
+  /** Extra crash risk (e.g. attacking with a broken wing). */
+  baseRisk: number;
+  /** Added to the pass chance. */
+  pass: number;
+}
+
+export const NO_MODS: DuelMods = { attRisk: 1, defRisk: 1, baseRisk: 0, pass: 0 };
+
+/** Damage effects for a pair of cars. */
+export function duelMods(tuning: Tuning, att: Car, def: Car): DuelMods {
+  const d = tuning.damage;
+  return {
+    attRisk: att.wingDamage ? d.wingRisk : 1,
+    defRisk: def.wingDamage ? d.wingRisk : 1,
+    baseRisk: (att.wingDamage ? d.wingBaseRisk : 0) + (def.wingDamage ? d.wingBaseRisk : 0),
+    pass:
+      -(att.wingDamage ? d.wingPass : 0) - (att.engineDamage ? d.enginePass : 0) + (def.wingDamage ? d.wingPass : 0) + (def.engineDamage ? d.enginePass : 0),
+  };
+}
+
 /** Pass chance (section 7.5 as changed after milestone 2): level against level, track and pace. */
-function passChance(t: Tuning['duel'], overtaking: number, a: DuelAttack, d: DuelDefend, adv: number): number {
+function passChance(t: Tuning['duel'], overtaking: number, a: DuelAttack, d: DuelDefend, adv: number, mods: DuelMods): number {
   const bonus = Math.min(t.paceBonusMax, Math.max(-t.paceBonusMax, t.paceBonusPer03 * (adv / 0.3)));
   const ot = overtaking / 0.5;
-  if (a === 4) return clamp(t.attackPass[4] * ot + bonus * 0.5, 0.03, t.allIn.maxPass);
-  return clamp((t.attackPass[a] - t.defendCut[d]) * ot + bonus, 0.02, t.maxPass);
+  if (a === 4) return clamp(t.attackPass[4] * ot + bonus * 0.5 + mods.pass * 0.5, 0.03, t.allIn.maxPass);
+  return clamp((t.attackPass[a] - t.defendCut[d]) * ot + bonus + mods.pass, 0.02, t.maxPass);
 }
 
 /**
@@ -419,16 +446,17 @@ export function duelOutcomes(
   a: DuelAttack,
   d: DuelDefend,
   adv: number,
+  mods: DuelMods = NO_MODS,
 ): Record<'pass' | 'fail' | 'crash' | 'spin' | 'off' | 'wait', number> {
   const t = tuning.duel;
   const out = { pass: 0, fail: 0, crash: 0, spin: 0, off: 0, wait: 0 };
   if (a === 0) return { ...out, wait: 1 };
   if (d === 0) return { ...out, pass: 1 };
   if (a === 4) {
-    const pass = passChance(t, overtaking, a, d, adv);
-    const contact = Math.min(1 - pass, t.defendRisk[d]);
+    const pass = passChance(t, overtaking, a, d, adv, mods);
+    const contact = Math.min(1 - pass, t.defendRisk[d] * mods.defRisk + mods.baseRisk);
     const rest = 1 - pass - contact;
-    const punished = rest * t.allIn.punish;
+    const punished = rest * Math.min(0.98, t.allIn.punish * Math.sqrt(mods.attRisk));
     out.pass = pass;
     out.spin = punished * t.allIn.spin;
     out.off = punished * t.allIn.off;
@@ -436,14 +464,17 @@ export function duelOutcomes(
     out.fail = rest - punished;
     return out;
   }
-  const crash = t.attackRisk[a] + t.defendRisk[d] + (a >= 3 && d >= 3 ? t.bothHard : 0);
-  const pass = Math.min(passChance(t, overtaking, a, d, adv), 1 - crash);
+  const crash = Math.min(
+    0.9,
+    t.attackRisk[a] * mods.attRisk + t.defendRisk[d] * mods.defRisk + (a >= 3 && d >= 3 ? t.bothHard * Math.max(mods.attRisk, mods.defRisk) : 0) + mods.baseRisk,
+  );
+  const pass = Math.min(passChance(t, overtaking, a, d, adv, mods), 1 - crash);
   return { ...out, crash, pass, fail: 1 - crash - pass };
 }
 
 /** Kept for older callers: pass and crash chance of a pair of choices. */
-export function duelOdds(tuning: Tuning, overtaking: number, a: DuelAttack, d: DuelDefend, adv: number) {
-  const o = duelOutcomes(tuning, overtaking, a, d, adv);
+export function duelOdds(tuning: Tuning, overtaking: number, a: DuelAttack, d: DuelDefend, adv: number, mods: DuelMods = NO_MODS) {
+  const o = duelOutcomes(tuning, overtaking, a, d, adv, mods);
   return { pass: o.pass, crash: o.crash + o.spin + o.off };
 }
 
@@ -464,6 +495,7 @@ export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOpt
   const def = carById(race, duel.defender);
   const adv = def.lapTime - att.lapTime;
   const ot = race.track.overtaking;
+  const mods = duelMods(race.tuning, att, def);
   const levels = [0, 1, 2, 3, 4] as const;
   if (carId === att.id) {
     const opp = defendChoiceOdds(adv);
@@ -471,7 +503,7 @@ export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOpt
       let success = 0;
       let risk = 0;
       levels.forEach((d) => {
-        const o = duelOutcomes(race.tuning, ot, a, d, adv);
+        const o = duelOutcomes(race.tuning, ot, a, d, adv, mods);
         success += opp[d] * o.pass;
         risk += opp[d] * (o.crash + o.spin + o.off);
       });
@@ -483,7 +515,7 @@ export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOpt
     let success = 0;
     let risk = 0;
     levels.forEach((a) => {
-      const o = duelOutcomes(race.tuning, ot, a, d, adv);
+      const o = duelOutcomes(race.tuning, ot, a, d, adv, mods);
       success += opp[a] * (1 - o.pass - o.crash);
       risk += opp[a] * o.crash;
     });
@@ -498,7 +530,7 @@ function decideDuel(race: RaceState, d: Duel): void {
   const adv = def.lapTime - att.lapTime;
   if (d.attack === null) d.attack = aiAttack(att, adv, att.lap >= race.track.laps - 1);
   if (d.defend === null) d.defend = aiDefend(def, adv);
-  const o = duelOutcomes(race.tuning, race.track.overtaking, d.attack, d.defend, adv);
+  const o = duelOutcomes(race.tuning, race.track.overtaking, d.attack, d.defend, adv, duelMods(race.tuning, att, def));
   let r = rand(race.rng);
   let outcome: DuelOutcome = 'fail';
   for (const k of ['wait', 'pass', 'crash', 'spin', 'off', 'fail'] as const) {
@@ -513,6 +545,12 @@ function decideDuel(race: RaceState, d: Duel): void {
     d.state = 'showing';
     d.applyAt = race.realTime + race.tuning.duel.showSeconds;
   } else applyDuel(race, d);
+}
+
+function damageEngine(race: RaceState, c: Car, p: number): void {
+  if (c.engineDamage || !chance(race.rng, p)) return;
+  c.engineDamage = true;
+  emit(race, 'engineDamage', c);
 }
 
 function applyDuel(race: RaceState, d: Duel): void {
@@ -545,21 +583,25 @@ function applyDuel(race: RaceState, d: Duel): void {
     case 'spin':
       att.loss += race.tuning.mistakes.spin;
       emit(race, 'duelSpin', att, def, data);
+      damageEngine(race, att, race.tuning.damage.engineFromSpin);
       return;
     case 'off':
       att.loss += race.tuning.mistakes.big;
       att.cond = Math.max(0, att.cond - race.tuning.mistakes.flatSpotWear);
       att.flatSpot = true;
       emit(race, 'duelOff', att, def, data);
+      damageEngine(race, att, race.tuning.damage.engineFromOff);
       return;
     case 'crash':
       att.loss += t.crashLoss;
       def.loss += t.crashLoss;
       emit(race, 'crash', att, def, data);
-      if (chance(race.rng, d.attack === 4 ? 0.6 : t.wingChance)) {
+      if (!att.wingDamage && chance(race.rng, d.attack === 4 ? 0.6 : t.wingChance)) {
         att.wingDamage = true;
         emit(race, 'wingDamage', att);
       }
+      damageEngine(race, att, race.tuning.damage.engineFromCrash);
+      damageEngine(race, def, race.tuning.damage.engineFromCrash / 2);
       if (chance(race.rng, t.safetyCarOnCrash)) {
         deploySafetyCar(race, int(race.rng, race.tuning.safetyCar.minLaps, race.tuning.safetyCar.maxLaps));
       }

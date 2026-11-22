@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   applyCommand,
   duelPreview,
+  duelMods,
+  duelOutcomes,
   buildField,
   createRace,
   dryWeather,
@@ -191,6 +193,44 @@ describe('safety car (7.6)', () => {
     const order = standings(r).filter((c) => c.status === 'running');
     const spread = (order[0].dist - order[order.length - 1].dist) * RHEIN.base;
     expect(spread).toBeLessThan(0.45 * 11 + 3);
+  });
+});
+
+describe('damage', () => {
+  it('a broken engine costs top speed, a broken wing too', () => {
+    const r = soloRace();
+    step(r);
+    const base = r.cars[0].lapTime;
+    r.cars[0].engineDamage = true;
+    step(r);
+    expect(r.cars[0].lapTime - base).toBeCloseTo(RHEIN_TUNING.damage.enginePace, 2);
+    r.cars[0].wingDamage = true;
+    step(r);
+    expect(r.cars[0].lapTime - base).toBeCloseTo(RHEIN_TUNING.damage.enginePace + RHEIN_TUNING.duel.wingPace, 2);
+  });
+  it('a broken wing makes every duel move riskier and less likely to work', () => {
+    const ok = humanCar('a-1');
+    const r = soloRace({}, {});
+    const att = { ...r.cars[0], ...ok, wingDamage: false } as typeof r.cars[0];
+    const def = { ...att, id: 'd-1' };
+    const clean = duelOutcomes(RHEIN_TUNING, 0.5, 1, 2, 0, duelMods(RHEIN_TUNING, att, def));
+    const broken = duelOutcomes(RHEIN_TUNING, 0.5, 1, 2, 0, duelMods(RHEIN_TUNING, { ...att, wingDamage: true }, def));
+    expect(broken.crash).toBeGreaterThan(clean.crash);
+    expect(broken.pass).toBeLessThan(clean.pass);
+    const slow = duelOutcomes(RHEIN_TUNING, 0.5, 2, 2, 0, duelMods(RHEIN_TUNING, { ...att, engineDamage: true }, def));
+    expect(slow.pass).toBeLessThan(duelOutcomes(RHEIN_TUNING, 0.5, 2, 2, 0).pass);
+  });
+  it('a pit stop repairs everything and takes longer for it', () => {
+    const r = soloRace();
+    const c = r.cars[0];
+    c.wingDamage = true;
+    c.engineDamage = true;
+    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+    while (c.status !== 'pit') step(r);
+    expect(c.pitTimer).toBeGreaterThan(RHEIN.pitLoss + RHEIN_TUNING.duel.wingPitExtra + RHEIN_TUNING.damage.enginePitExtra - 1);
+    while (c.status === 'pit') step(r);
+    expect(c.wingDamage).toBe(false);
+    expect(c.engineDamage).toBe(false);
   });
 });
 

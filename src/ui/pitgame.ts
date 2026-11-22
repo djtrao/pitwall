@@ -1,7 +1,9 @@
 /**
  * Pit stop mini-game (about 3 s):
- *  1. The 4 wheels light up one after another in a random order – tap each as fast as you can.
- *     Tapping the wrong wheel = stuck wheel nut.
+ *  1. 8 spots on the car can light up (4 wheels, front jack, rear jack, front wing, engine).
+ *     In each stop 4 of them light up one after another in a random order – tap each as fast
+ *     as you can. Tapping a dark spot = something got stuck. A broken wing / engine is always
+ *     one of the 4 (it is being repaired).
  *  2. Release light: wait for GREEN, then tap GO. Tapping on red = unsafe release (penalty).
  * The reaction times are turned into an F1-style standing time (about 1.9 – 6 s).
  * If the player does not touch anything, the crew does an average stop.
@@ -17,6 +19,10 @@ export interface PitResult {
 }
 
 const WHEELS = ['fl', 'fr', 'rl', 'rr'] as const;
+/** All spots that can light up. */
+export const SPOTS = ['fl', 'fr', 'rl', 'rr', 'fj', 'rj', 'fw', 'en'] as const;
+export type Spot = (typeof SPOTS)[number];
+const TASKS = 4;
 const WHEEL_TIMEOUT = 1.2;
 const RELEASE_TIMEOUT = 1.5;
 
@@ -27,6 +33,28 @@ export function shuffledWheels(): (typeof WHEELS)[number][] {
   let order: (typeof WHEELS)[number][];
   do {
     order = [...WHEELS];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+  } while (order.join() === lastOrder);
+  lastOrder = order.join();
+  return order;
+}
+
+/**
+ * The 4 jobs for this stop, in a random order: `forced` spots (damage repairs) are always included,
+ * the rest is picked at random from all 8 spots. Never the same as the previous stop.
+ */
+export function pickSpots(forced: Spot[] = []): Spot[] {
+  let order: Spot[];
+  do {
+    const pool = SPOTS.filter((x) => !forced.includes(x)) as Spot[];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    order = [...forced, ...pool].slice(0, TASKS);
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
@@ -53,20 +81,28 @@ export function stopSeconds(wheelTimes: number[], wrongTaps: number, release: nu
  * Runs the game inside `host` (an absolutely positioned overlay). Calls `done` with the result
  * as soon as the car is released, then shows the time for a moment and calls `closed`.
  */
-export function runPitGame(host: HTMLElement, title: string, avgStop: number, done: (r: PitResult) => void, closed: () => void): void {
+export function runPitGame(
+  host: HTMLElement,
+  title: string,
+  avgStop: number,
+  done: (r: PitResult) => void,
+  closed: () => void,
+  forced: Spot[] = [],
+): void {
+  const label: Record<Spot, string> = { fl: '', fr: '', rl: '', rr: '', fj: t('spotJack'), rj: t('spotJack'), fw: t('spotWing'), en: t('spotEngine') };
   host.innerHTML = `
     <div class="pg-title">${title}</div>
     <div class="pg-hint" id="pghint">${t('pitTapWheels')}</div>
     <div class="pg-car">
       <div class="pg-body"></div>
-      ${WHEELS.map((w) => `<button class="pg-wheel pg-${w}" data-w="${w}" aria-label="${w}"></button>`).join('')}
+      ${SPOTS.map((w) => `<button class="pg-wheel pg-${w}${w.length && WHEELS.includes(w as never) ? '' : ' pg-part'}" data-w="${w}" aria-label="${w}">${label[w]}</button>`).join('')}
       <div class="pg-light" id="pglight"></div>
     </div>
     <button class="pg-go" id="pggo" disabled>${t('pitGo')}</button>
     <div class="pg-result" id="pgres"></div>`;
   host.classList.add('show');
 
-  const order = shuffledWheels();
+  const order = pickSpots(forced);
   const times: number[] = [];
   let wrong = 0;
   let taps = 0;

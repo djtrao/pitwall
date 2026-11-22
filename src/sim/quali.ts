@@ -36,32 +36,39 @@ export const QUALI = {
   /** ± random part of a lap (s). */
   noise: 0.1,
   /** Seconds the marker needs to cross the bar. */
-  markerSeconds: { rookie: 1.7, pro: 1.05 } as Record<Difficulty, number>,
+  markerSeconds: { rookie: 1.4, pro: 0.95 } as Record<Difficulty, number>,
+  /** The marker speeds up while it moves: position = (time share) ^ curve. */
+  markerCurve: 1.6,
+  /** The braking point (centre of the zones) sits somewhere in this part of the bar. */
+  centreMin: 0.3,
+  centreMax: 0.72,
   /** Seconds to choose the risk before a corner. */
   chooseSeconds: 3,
   runs: 2,
 };
 
 export interface Zones {
-  /** Half widths (share of the bar) of the green zone and of green + yellow, centred at 0.5. */
+  /** Braking point: centre of the zones (share of the bar). */
+  centre: number;
+  /** Half widths (share of the bar) of the green zone and of green + yellow. */
   green: number;
   outer: number;
 }
 
 /** Zone sizes for a corner: depends on risk, tyre and wetness. */
-export function zonesFor(risk: CornerRisk, tyre: Tyre, wetness: number): Zones {
+export function zonesFor(risk: CornerRisk, tyre: Tyre, wetness: number, centre = 0.5): Zones {
   let f = 1;
   if (tyre === 'S') f *= QUALI.softWider;
   if (tyre === 'H') f *= QUALI.hardNarrower;
   if (tyre !== 'W' && wetness > QUALI.wetAbove) f *= QUALI.wetSlicks;
   const green = (QUALI.green[risk] * f) / 2;
-  return { green, outer: green + QUALI.yellow * f };
+  return { centre, green, outer: green + QUALI.yellow * f };
 }
 
 /** Which zone a tap at `pos` (0..1 along the bar, null = no tap) hit. */
 export function hitAt(pos: number | null, z: Zones): CornerHit {
   if (pos === null) return 'miss';
-  const d = Math.abs(pos - 0.5);
+  const d = Math.abs(pos - z.centre);
   if (d <= z.green) return 'green';
   if (d <= z.outer) return 'yellow';
   return 'miss';
@@ -74,6 +81,16 @@ export interface CornerResult {
   delta: number;
   /** Lap deleted (track limits). */
   deleted: boolean;
+}
+
+/** Random braking point for a corner. */
+export function randomCentre(roll: number): number {
+  return QUALI.centreMin + (QUALI.centreMax - QUALI.centreMin) * roll;
+}
+
+/** Marker position (0..1) after `seconds`; it speeds up while it moves. */
+export function markerAt(seconds: number, difficulty: Difficulty): number {
+  return Math.min(1, Math.pow(Math.max(0, seconds) / QUALI.markerSeconds[difficulty], QUALI.markerCurve));
 }
 
 /** Turn a hit into a time change. `roll` is a random number 0..1 (deletion on a missed Send it!). */
@@ -138,8 +155,9 @@ export function aiQualifying(car: CarSetup, track: Track, wx: Weather, tuning: T
       // cautious drivers mostly Safe, aggressive ones gamble; second runs are a bit bolder
       const bold = aggression + (run > 0 ? 0.15 : 0);
       const risk: CornerRisk = r < 0.55 - bold * 0.45 ? 0 : r < 0.9 - bold * 0.3 ? 1 : 2;
-      const pos = 0.5 + gauss(rng) * aim;
-      corners.push(cornerResult(risk, hitAt(pos, zonesFor(risk, tyre, wet)), rand(rng)));
+      const centre = randomCentre(rand(rng));
+      const pos = centre + gauss(rng) * aim;
+      corners.push(cornerResult(risk, hitAt(pos, zonesFor(risk, tyre, wet, centre)), rand(rng)));
     }
     const time = hotLapTime(baseHotLap(car, tyre, wet, track, tuning, used), corners, rng);
     runs.push({ carId: car.id, run, tyre, corners, time });

@@ -58,6 +58,10 @@ export function aiOnLap(race: RaceState, c: Car, done: number): void {
     } else if (w < c.ai.dryThreshold && race.rainNow === 0) {
       c.pitPlan = pickDryTyre(race, c, left);
     }
+    // damaged car: come in for repairs while there is still time to gain from it
+    if (!c.pitPlan && (c.wingDamage || c.engineDamage) && left >= 3) {
+      c.pitPlan = c.tyre === 'W' && w > c.ai.dryThreshold ? 'W' : pickDryTyre(race, c, left);
+    }
     if (!c.pitPlan && c.tyre !== 'W') {
       const r = wearPerLap(c.tyre, NORMAL, w, track, t, false);
       const endCond = c.cond - r * left;
