@@ -96,6 +96,8 @@ export interface Car extends CarSetup {
   /** Tyre to fit at the end of this lap, or null. */
   pitPlan: Tyre | null;
   pitTimer: number;
+  /** Length of the current pit stop (s), for the pit lane animation. */
+  pitTotal: number;
   pitTyre: Tyre | null;
   stops: number;
   /** Seconds still to lose from a mistake / failed attack / crash. */

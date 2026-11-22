@@ -9,9 +9,10 @@ A Formula 1 team-manager game for phones (1–4 players). See [SPEC.md](SPEC.md)
 
 | Milestone | What | State |
 | --- | --- | --- |
-| 1 | Simulation core + unit tests + balance runner | ✅ done (Sim Lab page to watch AI races) |
-| 2 | Single-player race screen | next |
-| 3–7 | Duels UI, Hot Lap, season, multiplayer, polish | later |
+| 1 | Simulation core + unit tests + balance runner | ✅ done |
+| 2 | Single-player race screen (German + English) | ✅ done |
+| 3 | Overtaking duels | next |
+| 4–7 | Hot Lap, season, multiplayer, polish | later |
 
 ## Project layout
 
@@ -25,7 +26,9 @@ src/sim/        the race engine (pure TypeScript, no browser code – also runs 
   tracks.ts     tracks (3 now, 8 in milestone 5)
   teams.ts      fictional AI teams, points
   grid.ts       building the 12-car field, fuel options, stand-in qualifying
-src/lab/        "Sim Lab" – a small page to watch a race (milestone 1 only)
+src/screens/    start screen, race screen, results
+src/ui/         track drawing and small helpers
+src/i18n.ts     all UI text, German and English
 tests/          unit tests (Vitest)
 scripts/        balance runner and a quick one-race printout
 docs/           latest balance report
@@ -54,4 +57,4 @@ npm run dev
 - `npm install` downloads the tools (once).
 - `npm test` runs all unit tests.
 - `npm run balance` simulates hundreds of races and prints the section 10 statistics (`--quick` for a fast run, `--only stops,push` for some sections, `--tuning '{"pitLossScale":0.5}'` to try other numbers).
-- `npm run dev` starts the Sim Lab on your computer (open the address it prints).
+- `npm run dev` starts the game on your computer (open the address it prints).
