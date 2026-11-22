@@ -16,7 +16,7 @@ for (const r of results(race)) {
   const c = r.car;
   console.log(
     String(r.pos).padStart(2), `P${c.grid}`.padEnd(4), c.name.padEnd(15), c.carPace.toFixed(2).padStart(5), (r.time?.toFixed(1) ?? 'DNF').padStart(7),
-    (r.gap?.toFixed(1) ?? '').padStart(6), c.usedTyres.join('').padEnd(4), 'stops', c.stops, 'mist', c.mistakes, 'fuel', c.fuel.toFixed(2), 'pen', c.penalty,
+    (r.gap?.toFixed(1) ?? '').padStart(6), c.usedTyres.join('').padEnd(4), 'stops', c.stops, 'mist', c.mistakes, 'pen', c.penalty,
   );
 }
 const counts: Record<string, number> = {};

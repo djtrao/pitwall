@@ -32,11 +32,10 @@ export function wearPerLap(tyre: Tyre, mode: Mode, wetness: number, track: Track
   return r / 100;
 }
 
-/** T = T_base + car + driver + tyre + wear + fuel + mode + weather + noise (+ damage). */
+/** T = T_base + car + driver + tyre + wear + mode + weather + noise (+ damage). */
 export function carLapTime(c: Car, track: Track, wetness: number, t: Tuning): number {
   let lt = track.base + c.carPace + c.driverPace;
   lt += t.tyres[c.tyre].pace + wearPenalty(c.cond, t);
-  lt += c.fuel * t.fuel.weight;
   lt += t.modes[c.mode].pace;
   lt += weatherPenalty(c.tyre, wetness, t);
   lt += c.noise;
@@ -83,10 +82,4 @@ export function stintCost(tyre: Tyre, laps: number, track: Track, t: Tuning, mod
 export function lapsToCliff(tyre: Tyre, mode: Mode, track: Track, t: Tuning, wetness = 0): number {
   const r = wearPerLap(tyre, mode, wetness, track, t, false);
   return (1 - t.cliffAt) / r;
-}
-
-/** Fuel margin in laps if the car keeps its current mode to the finish ("+0.8 laps"). */
-export function fuelMargin(c: Car, track: Track, t: Tuning): number {
-  const remaining = Math.max(0, track.laps - Math.max(0, c.dist));
-  return c.fuel - remaining * t.modes[c.mode].fuel;
 }

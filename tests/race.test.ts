@@ -18,6 +18,8 @@ import {
 } from '../src/sim';
 import { humanCar, RHEIN, soloRace } from './helpers';
 
+const RHEIN_TUNING = makeTuning();
+
 function fullRace(seed: number, trackIndex = 0) {
   const track = TRACKS[trackIndex];
   const tuning = makeTuning();
@@ -60,7 +62,7 @@ describe('determinism', () => {
 });
 
 describe('full races', () => {
-  it('every race ends with all cars classified and 1× lasting roughly laps × 20 s', () => {
+  it('every race ends with all cars classified and 1× lasting 6 – 8 minutes at 1×', () => {
     for (let s = 1; s <= 12; s++) {
       const race = simulate(fullRace(s, s % 3));
       expect(race.over).toBe(true);
@@ -68,8 +70,8 @@ describe('full races', () => {
       expect(res).toHaveLength(12);
       expect(res[0].car.status).toBe('finished');
       const minutes = race.realTime / 60;
-      expect(minutes).toBeGreaterThan(race.track.laps * 20 / 60 * 0.95);
-      expect(minutes).toBeLessThan(race.track.laps * 20 / 60 * 1.35);
+      expect(minutes).toBeGreaterThan(5.9);
+      expect(minutes).toBeLessThan(8.3);
     }
   });
   it('AI cars follow the two-compound rule in dry races', () => {
@@ -86,53 +88,28 @@ function cfgFrom(r: RaceState) {
   return { seed: r.seed, track: r.track, cars: r.cars.map((c) => ({ ...c })), tuning: r.tuning };
 }
 
-describe('fuel (7.2)', () => {
-  it('Normal mode uses exactly one lap of fuel per lap', () => {
-    const race = soloRace();
-    applyCommand(race, { type: 'pit', car: 'me-1', tyre: null });
-    const c = runTo(race, 5);
-    expect(c.fuel).toBeCloseTo(RHEIN.laps + 0.5 - c.dist, 5);
-  });
-  it('each lap of fuel costs 0.12 s per lap', () => {
-    const a = soloRace({}, { fuel: 10 });
-    const b = soloRace({}, { fuel: 15 });
-    step(a);
-    step(b);
-    expect(b.cars[0].lapTime - a.cars[0].lapTime).toBeCloseTo(0.6, 5);
-  });
-  it('running out of fuel retires the car', () => {
-    const race = soloRace({}, { fuel: 3 });
-    simulate(race);
-    const c = race.cars[0];
-    expect(c.status).toBe('dnf');
-    expect(c.dist).toBeCloseTo(3, 1);
-    expect(race.events.some((e) => e.kind === 'outOfFuel')).toBe(true);
-  });
-  it('humans get a fuel warning when the projection is negative', () => {
-    const race = soloRace({}, { fuel: RHEIN.laps - 1 });
-    runTo(race, 2);
-    expect(race.events.some((e) => e.kind === 'fuelLow')).toBe(true);
-  });
-});
-
 describe('modes and mistakes (7.3)', () => {
-  it('Push is 0.6 s faster per lap and Max Attack 1.2 s', () => {
+  it('each mode changes the lap time by its pace value', () => {
     const times = [0, 1, 2, 3].map((m) => {
       const r = soloRace();
       applyCommand(r, { type: 'mode', car: 'me-1', mode: m as 0 | 1 | 2 | 3 });
       step(r);
       return r.cars[0].lapTime;
     });
-    expect(times[0] - times[1]).toBeCloseTo(0.5);
-    expect(times[2] - times[1]).toBeCloseTo(-0.6);
-    expect(times[3] - times[1]).toBeCloseTo(-1.2);
+    const m = RHEIN_TUNING.modes;
+    expect(times[0] - times[1]).toBeCloseTo(m[0].pace);
+    expect(times[2] - times[1]).toBeCloseTo(m[2].pace);
+    expect(times[3] - times[1]).toBeCloseTo(m[3].pace);
+    expect(times[3]).toBeLessThan(times[2]);
+    expect(times[2]).toBeLessThan(times[1]);
+    expect(times[1]).toBeLessThan(times[0]);
   });
   it('Conserve never makes mistakes, Max Attack makes many', () => {
     let conserve = 0;
     let maxAttack = 0;
     for (let s = 1; s <= 30; s++) {
       for (const [mode, add] of [[0, (n: number) => (conserve += n)], [3, (n: number) => (maxAttack += n)]] as const) {
-        const r = soloRace({ seed: s }, { fuel: 30 });
+        const r = soloRace({ seed: s });
         applyCommand(r, { type: 'mode', car: 'me-1', mode });
         runTo(r, 4);
         add(r.cars[0].mistakes);
@@ -146,7 +123,7 @@ describe('modes and mistakes (7.3)', () => {
     const wet: Weather = { quali: 1, laps: new Array(RHEIN.laps).fill(1), noise: new Array(12).fill(0) };
     let spins = 0;
     for (let s = 1; s <= 20; s++) {
-      const r = soloRace({ seed: s, weather: wet }, { fuel: 30 });
+      const r = soloRace({ seed: s, weather: wet });
       applyCommand(r, { type: 'mode', car: 'me-1', mode: 2 });
       runTo(r, 5);
       spins += r.events.filter((e) => e.kind === 'spin').length;
@@ -197,13 +174,13 @@ describe('safety car (7.6)', () => {
     step(r);
     expect(r.safetyCar.active).toBe(false);
   });
-  it('a stop under the safety car costs half the pit loss', () => {
+  it('a stop under the safety car costs only part of the pit loss', () => {
     const r = soloRace({ safetyCar: { lap: 4, laps: 3, at: 0.2 } });
     runTo(r, 4);
     applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
     runTo(r, 5);
     const pitIn = r.events.find((e) => e.kind === 'pitIn')!;
-    expect(pitIn.data!.loss).toBeCloseTo(RHEIN.pitLoss / 2, 1);
+    expect(pitIn.data!.loss).toBeCloseTo(RHEIN.pitLoss * RHEIN_TUNING.safetyCar.pitFactor, 1);
   });
   it('bunches the field up to about 0.4 s apart', () => {
     const race = fullRace(4);
@@ -232,8 +209,8 @@ describe('weather in the race', () => {
 
 describe('duels (7.5)', () => {
   it('a faster car cannot drive through a slower one and has to win a duel', () => {
-    const slow = humanCar('slow-1', { carPace: 2, autoDuel: true, human: false, autopilot: false, fuel: 30 });
-    const fast = humanCar('fast-1', { autoDuel: true, fuel: 30 });
+    const slow = humanCar('slow-1', { carPace: 2, autoDuel: true, human: false, autopilot: false });
+    const fast = humanCar('fast-1', { autoDuel: true });
     const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
     let minGap = Infinity;
     while (r.cars[0].lap < 6) {
@@ -246,8 +223,8 @@ describe('duels (7.5)', () => {
     expect(r.events.some((e) => e.kind === 'pass')).toBe(true);
   });
   it('human answers are used for the duel', () => {
-    const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false, fuel: 30 });
-    const fast = humanCar('fast-1', { autoDuel: false, fuel: 30 });
+    const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
+    const fast = humanCar('fast-1', { autoDuel: false });
     const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
     while (!r.duels.length) step(r);
     const d = r.duels[0];
@@ -258,8 +235,8 @@ describe('duels (7.5)', () => {
     expect(d.outcome).toBe('wait');
   });
   it('unanswered human duels are decided automatically after 6 s', () => {
-    const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false, fuel: 30 });
-    const fast = humanCar('fast-1', { autoDuel: false, fuel: 30 });
+    const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
+    const fast = humanCar('fast-1', { autoDuel: false });
     const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
     while (!r.duels.length) step(r);
     const d = r.duels[0];

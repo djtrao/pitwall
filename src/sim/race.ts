@@ -1,5 +1,5 @@
 import { aiAttack, aiDefend, aiOnLap } from './ai';
-import { carLapTime, fuelMargin, mistakeChance, tyreRuleOk, wearPerLap } from './model';
+import { carLapTime, mistakeChance, tyreRuleOk, wearPerLap } from './model';
 import { chance, clamp, gauss, int, makeRng, rand, range } from './rng';
 import { makeTuning, type Tuning } from './tuning';
 import type { Car, Command, Duel, DuelAttack, DuelDefend, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
@@ -52,7 +52,6 @@ export function createRace(cfg: RaceConfig): RaceState {
       tyreLaps: 0,
       usedTyres: [s.startTyre],
       mode: NORMAL,
-      fuel: s.fuel,
       pitPlan: null,
       pitTimer: 0,
       pitTyre: null,
@@ -233,24 +232,17 @@ export function step(race: RaceState, realDt = 0.1): void {
     }
   }
 
-  // ----- apply movement, wear, fuel, mistakes -----
+  // ----- apply movement, wear, mistakes -----
   for (const c of running) {
     const nd = next.get(c)!;
     c.speed = Math.max(0, nd - c.dist) / dt;
-    // wear and fuel only count from the start line on
+    // wear only counts from the start line on
     const dDist = Math.max(0, nd - Math.max(0, c.dist));
     c.dist = nd;
     if (c.dist <= 0) continue; // still behind the start line
     c.cond = Math.max(0, c.cond - wearPerLap(c.tyre, c.mode, race.wetness, track, t, sc.active) * dDist);
-    c.fuel -= t.modes[c.mode].fuel * (sc.active ? t.fuel.safetyCar : 1) * dDist;
     if (c.loss > 0) c.loss = Math.max(0, c.loss - dt * (1 - t.mistakes.slowFactor));
     else if (!sc.active && rand(c.rng) < mistakeChance(c, race.wetness, t) * dDist) makeMistake(race, c);
-    if (c.fuel <= 0) {
-      c.fuel = 0;
-      c.status = 'dnf';
-      c.finishTime = race.time;
-      emit(race, 'outOfFuel', c);
-    }
   }
 
   // ----- line crossings -----
@@ -284,8 +276,6 @@ export function step(race: RaceState, realDt = 0.1): void {
       continue;
     }
     if (c.human) {
-      const m = fuelMargin(c, track, t);
-      if (m < 0) emit(race, c.fuel < 2 ? 'fuelCritical' : 'fuelLow', c, undefined, { margin: Math.round(m * 10) / 10 });
       if (c.cond < t.cliffAt + 0.05) emit(race, 'tyresWorn', c, undefined, { cond: Math.round(c.cond * 100) });
     }
   }

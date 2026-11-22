@@ -1,44 +1,34 @@
 /**
  * Every balance number of the race model lives here, so the balance runner can
  * try different values without touching the simulation code.
- * Defaults are the values from SPEC.md (sections 7.1 – 7.6).
+ * Defaults are the values from SPEC.md (sections 7.1 – 7.6), as tuned with the balance runner.
  */
 export const DEFAULT_TUNING = {
   /** Real seconds per lap at 1× speed (section 7). */
-  realLapSeconds: 20,
+  realLapSeconds: 23,
   /** Random lap-time noise (standard deviation, s), new each lap. */
   noise: 0.3,
 
   tyres: {
-    S: { pace: 0, wear: 9 },
-    M: { pace: 0.6, wear: 6 },
-    H: { pace: 1.2, wear: 4 },
+    S: { pace: 0, wear: 12 },
+    M: { pace: 0.6, wear: 8 },
+    H: { pace: 1.2, wear: 5.5 },
     /** Rain tyre: wear on a wet track / when wetness is under `dryBelow`. */
     W: { pace: 0, wear: 3, wearDry: 14, dryBelow: 25 },
   },
   /** Slicks wear less on a wet track (prototype model). */
   slickWetWear: { above: 40, factor: 0.6 },
   /** Wear penalty = (1 − condition) × slope, plus a cliff below `cliffAt`. */
-  wearSlope: 2.0,
+  wearSlope: 2.5,
   cliffAt: 0.25,
   cliffSlope: 16,
 
-  fuel: {
-    /** Seconds per lap for each lap of fuel on board. */
-    weight: 0.12,
-    /** Fuel use factor under the safety car. */
-    safetyCar: 0.5,
-    /** Allowed start fuel as a share of race distance. */
-    min: 0.9,
-    max: 1.05,
-  },
-
   /** Driving modes: 0 Conserve, 1 Normal, 2 Push, 3 Max Attack. */
   modes: [
-    { pace: 0.5, wear: 0.6, fuel: 0.75, mistake: 0, bigShare: 0 },
-    { pace: 0, wear: 1.0, fuel: 1.0, mistake: 0.005, bigShare: 0 },
-    { pace: -0.6, wear: 1.5, fuel: 1.15, mistake: 0.03, bigShare: 0.1 },
-    { pace: -1.2, wear: 3.0, fuel: 1.3, mistake: 0.08, bigShare: 0.25 },
+    { pace: 0.5, wear: 0.6, mistake: 0, bigShare: 0 },
+    { pace: 0, wear: 1.0, mistake: 0.005, bigShare: 0 },
+    { pace: -0.8, wear: 1.25, mistake: 0.03, bigShare: 0.1 },
+    { pace: -1.5, wear: 1.6, mistake: 0.08, bigShare: 0.25 },
   ],
 
   mistakes: {
@@ -64,7 +54,7 @@ export const DEFAULT_TUNING = {
     /** Everyone: seconds per % wetness. */
     allPerWet: 0.04,
     slickFrom: 15,
-    slickPer: 0.12,
+    slickPer: 0.075,
     rainFrom: 35,
     rainPer: 0.11,
     rainBase: 0.8,
@@ -108,7 +98,7 @@ export const DEFAULT_TUNING = {
     minLaps: 2,
     maxLaps: 4,
     wear: 0.3,
-    pitFactor: 0.5,
+    pitFactor: 0.2,
   },
 
   /** Multiplies every track's pit stop time loss (1 = spec values). */

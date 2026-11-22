@@ -14,7 +14,6 @@ export function humanCar(id = 'me-1', over: Partial<CarSetup> = {}): CarSetup {
     carPace: 0,
     driverPace: 0,
     startTyre: 'S',
-    fuel: RHEIN.laps + 0.5,
     autoDuel: true,
     ...over,
   };
@@ -25,7 +24,7 @@ export function soloRace(over: Partial<RaceConfig> = {}, car: Partial<CarSetup> 
   return createRace({
     seed: 1,
     track,
-    cars: [humanCar('me-1', { fuel: track.laps + 0.5, ...car })],
+    cars: [humanCar('me-1', car)],
     weather: dryWeather(track.laps),
     safetyCar: null,
     tuning: makeTuning({ noise: 0 }),

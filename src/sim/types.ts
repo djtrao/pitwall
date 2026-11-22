@@ -68,8 +68,6 @@ export interface CarSetup {
   /** Driver offset (s per lap). 0 for humans. */
   driverPace: number;
   startTyre: Tyre;
-  /** Start fuel in laps. */
-  fuel: number;
   /** AI drives this car (always true for AI teams; for humans = disconnected / balance bot). */
   autopilot?: boolean;
   /** Human driver: resolve duels automatically. */
@@ -95,7 +93,6 @@ export interface Car extends CarSetup {
   tyreLaps: number;
   usedTyres: Tyre[];
   mode: Mode;
-  fuel: number;
   /** Tyre to fit at the end of this lap, or null. */
   pitPlan: Tyre | null;
   pitTimer: number;
@@ -169,9 +166,6 @@ export type EventKind =
   | 'duelWait'
   | 'crash'
   | 'wingDamage'
-  | 'fuelLow'
-  | 'fuelCritical'
-  | 'outOfFuel'
   | 'tyresWorn'
   | 'penalty'
   | 'win'
