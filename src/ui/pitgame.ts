@@ -20,6 +20,22 @@ const WHEELS = ['fl', 'fr', 'rl', 'rr'] as const;
 const WHEEL_TIMEOUT = 1.2;
 const RELEASE_TIMEOUT = 1.5;
 
+let lastOrder = '';
+
+/** Random wheel order (Fisher–Yates shuffle), never the same as the previous stop. */
+export function shuffledWheels(): (typeof WHEELS)[number][] {
+  let order: (typeof WHEELS)[number][];
+  do {
+    order = [...WHEELS];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+  } while (order.join() === lastOrder);
+  lastOrder = order.join();
+  return order;
+}
+
 export function pitRating(seconds: number): string {
   if (seconds <= 2.2) return t('pitGreat');
   if (seconds <= 2.8) return t('pitGood');
@@ -50,7 +66,7 @@ export function runPitGame(host: HTMLElement, title: string, avgStop: number, do
     <div class="pg-result" id="pgres"></div>`;
   host.classList.add('show');
 
-  const order = [...WHEELS].sort(() => Math.random() - 0.5);
+  const order = shuffledWheels();
   const times: number[] = [];
   let wrong = 0;
   let taps = 0;
