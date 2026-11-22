@@ -1,5 +1,6 @@
 import { aiAttack, aiDefend, aiOnLap, attackChoiceOdds, defendChoiceOdds } from './ai';
-import { carLapTime, mistakeChance, tyreRuleOk, wearPerLap } from './model';
+import { carLapTime, lapScale, mistakeChance, REF_LAP, tyreRuleOk, wearPerLap } from './model';
+import { realLapSeconds } from './tracks';
 import { chance, clamp, gauss, int, makeRng, rand, range } from './rng';
 import { makeTuning, type Tuning } from './tuning';
 import type { Car, Command, Duel, DuelAttack, DuelDefend, DuelOutcome, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
@@ -27,7 +28,7 @@ export function createRace(cfg: RaceConfig): RaceState {
   } else if (chance(scRng, track.safetyCarChance)) {
     const lap = int(scRng, 2, Math.max(2, track.laps - 2));
     plannedAt = lap - 1 + rand(scRng);
-    plannedLaps = int(scRng, tuning.safetyCar.minLaps, tuning.safetyCar.maxLaps);
+    plannedLaps = range(scRng, tuning.safetyCar.minLaps, tuning.safetyCar.maxLaps);
   }
 
   const cars: Car[] = cfg.cars.map((s, i) => {
@@ -55,6 +56,8 @@ export function createRace(cfg: RaceConfig): RaceState {
       pitPlan: null,
       pitTimer: 0,
       pitTotal: 0,
+      pitPhase: null,
+      decidedLap: -1,
       pitAwait: false,
       pitHold: 0,
       pitTyre: null,
@@ -84,7 +87,7 @@ export function createRace(cfg: RaceConfig): RaceState {
     track,
     tuning,
     speed: cfg.speed ?? 1,
-    timeScale: track.base / tuning.realLapSeconds,
+    timeScale: track.base / realLapSeconds(track, tuning),
     time: 0,
     realTime: 0,
     ticks: 0,
@@ -127,13 +130,14 @@ export function leaderLap(race: RaceState): number {
   return clamp(Math.floor(leaderDist(race)) + 1, 1, race.track.laps);
 }
 
+/** Safety car for `laps` laps of track (random length: nobody knows when it comes in). */
 function deploySafetyCar(race: RaceState, laps: number): void {
   const sc = race.safetyCar;
   if (sc.active || race.leaderFinished) return;
   const ld = leaderDist(race);
-  // the safety car comes in at the line; there must be at least one racing lap after it
-  const endAt = Math.min(Math.ceil(ld) + laps - 1, race.track.laps - 1);
-  if (endAt - ld < 0.5) return;
+  // at least half a lap of racing after it
+  const endAt = Math.min(ld + laps, race.track.laps - 0.5);
+  if (endAt - ld < 0.3) return;
   sc.active = true;
   sc.endAt = endAt;
   sc.count++;
@@ -142,7 +146,7 @@ function deploySafetyCar(race: RaceState, laps: number): void {
     c.closeTo = null;
   }
   for (const d of race.duels) if (d.state !== 'done') cancelDuel(d);
-  emit(race, 'safetyCar', undefined, undefined, { laps });
+  emit(race, 'safetyCar');
   for (const c of race.cars) if (c.human && c.status === 'running') emit(race, 'boxNow', c);
 }
 
@@ -172,27 +176,44 @@ export function step(race: RaceState, realDt = 0.1): void {
     emit(race, 'safetyCarEnd');
   }
 
-  // ----- pit stops -----
+  // ----- pit lane: drive in slowly, stop in the box (at the line), drive out slowly -----
   for (const c of race.cars) {
     if (c.status !== 'pit') continue;
-    c.pitTimer -= dt;
-    if (c.pitTimer <= 0 && c.pitAwait) {
-      // the player is still playing the pit stop game: wait a little, then the crew does an average stop
-      c.pitHold += realDt;
-      if (c.pitHold < t.pit.maxHold) continue;
-      c.pitAwait = false;
+    if (c.pitPhase === 'stop') {
+      c.pitTimer -= dt;
+      if (c.pitTimer <= 0 && c.pitAwait) {
+        // the player is still playing the pit stop game: wait a little, then the crew does an average stop
+        c.pitHold += realDt;
+        if (c.pitHold < t.pit.maxHold) continue;
+        c.pitAwait = false;
+      }
+      if (c.pitTimer <= 0) {
+        c.pitTimer = 0;
+        c.pitPhase = 'out';
+        c.tyre = c.pitTyre ?? c.tyre;
+        c.pitTyre = null;
+        c.cond = 1;
+        c.tyreLaps = 0;
+        if (!c.usedTyres.includes(c.tyre)) c.usedTyres.push(c.tyre);
+        c.flatSpot = false;
+        c.wingDamage = false;
+        c.engineDamage = false;
+      }
+      continue;
     }
-    if (c.pitTimer <= 0) {
-      c.pitTimer = 0;
+    const v = pitLaneSpeed(race);
+    c.speed = v;
+    c.dist += v * dt;
+    if (c.pitPhase === 'in' && c.dist >= c.lap + 1) {
+      // the box is at the line: the lap is complete
+      c.dist = c.lap + 1;
+      crossLine(race, c);
+      if (c.status !== 'pit') continue; // finished
+      c.pitPhase = 'stop';
+      c.pitTimer = c.pitTotal;
+    } else if (c.pitPhase === 'out' && c.dist >= c.lap + t.pit.laneOut) {
       c.status = 'running';
-      c.tyre = c.pitTyre ?? c.tyre;
-      c.pitTyre = null;
-      c.cond = 1;
-      c.tyreLaps = 0;
-      if (!c.usedTyres.includes(c.tyre)) c.usedTyres.push(c.tyre);
-      c.flatSpot = false;
-      c.wingDamage = false;
-      c.engineDamage = false;
+      c.pitPhase = null;
       emit(race, 'pitOut', c, undefined, { tyre: c.tyre });
     }
   }
@@ -235,7 +256,7 @@ export function step(race: RaceState, realDt = 0.1): void {
           c.closeTime = 0;
         }
         c.closeTime += dt;
-        if (c.closeTime >= t.duel.closeLaps * c.lapTime) startDuel(race, c, a);
+        if (c.closeTime >= t.duel.closeLaps * REF_LAP) startDuel(race, c, a);
       } else {
         c.closeTo = null;
         c.closeTime = 0;
@@ -253,52 +274,23 @@ export function step(race: RaceState, realDt = 0.1): void {
     if (c.dist <= 0) continue; // still behind the start line
     c.cond = Math.max(0, c.cond - wearPerLap(c.tyre, c.mode, race.wetness, track, t, sc.active) * dDist);
     if (c.loss > 0) c.loss = Math.max(0, c.loss - dt * (1 - t.mistakes.slowFactor));
-    else if (!sc.active && rand(c.rng) < mistakeChance(c, race.wetness, t) * dDist) makeMistake(race, c);
+    else if (!sc.active && rand(c.rng) < mistakeChance(c, race.wetness, t) * lapScale(track) * dDist) makeMistake(race, c);
   }
 
-  // ----- line crossings -----
+  // ----- decisions before the pit entry, pit entry, line crossings -----
   for (const c of running) {
     if (c.status !== 'running') continue;
-    const f = Math.floor(c.dist);
-    if (f <= c.lap) continue;
-    c.lap = f;
-    if (f >= 1) {
-      c.lastLap = race.time - c.lapStart;
-      if (c.bestLap === null || c.lastLap < c.bestLap) c.bestLap = c.lastLap;
-      c.tyreLaps++;
+    const next = c.lap + 1; // the next line
+    // decide just before the pit lane starts (AI strategy, BOX calls), then maybe turn in
+    if (c.lap >= 0 && c.decidedLap < next && c.dist >= next - t.pit.laneIn - 0.02) {
+      c.decidedLap = next;
+      if (c.autopilot && next < track.laps) aiOnLap(race, c, next);
     }
-    c.lapStart = race.time;
-    if (f >= track.laps || (race.leaderFinished && f >= 1)) {
-      finishCar(race, c);
+    if (c.pitPlan && c.lap >= 0 && next < track.laps && !race.leaderFinished && c.dist >= next - t.pit.laneIn) {
+      enterPits(race, c);
       continue;
     }
-    c.noise = gauss(c.rng) * t.noise;
-    if (f < 1) continue; // start of lap 1
-    if (c.autopilot) aiOnLap(race, c, f);
-    if (c.pitPlan) {
-      c.status = 'pit';
-      c.pitTyre = c.pitPlan;
-      c.pitPlan = null;
-      c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0) + (c.engineDamage ? t.damage.enginePitExtra : 0);
-      // team mate already in the box: wait behind him
-      if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) c.pitTimer += t.pit.doubleStack;
-      const baseLoss = c.pitTimer;
-      c.pitHold = 0;
-      c.pitAwait = !!c.pitGame && c.human && !c.autopilot;
-      if (!c.pitAwait) {
-        // crew performance: usually close to average, sometimes a fumble
-        c.pitTimer += gauss(c.rng) * t.pit.crewSpread + (chance(c.rng, t.pit.crewFumble) ? t.pit.fumbleLoss : 0);
-      }
-      c.pitTotal = c.pitTimer;
-      c.stops++;
-      c.closeTime = 0;
-      c.closeTo = null;
-      emit(race, 'pitIn', c, undefined, { tyre: c.pitTyre, loss: Math.round(baseLoss * 10) / 10 });
-      continue;
-    }
-    if (c.human) {
-      if (c.cond < t.cliffAt + 0.05) emit(race, 'tyresWorn', c, undefined, { cond: Math.round(c.cond * 100) });
-    }
+    if (Math.floor(c.dist) > c.lap) crossLine(race, c);
   }
 
   // finished cars roll on slowly (cool-down lap, for the track view)
@@ -309,6 +301,57 @@ export function step(race: RaceState, realDt = 0.1): void {
   if (race.cars.every((c) => c.status === 'finished' || c.status === 'dnf')) race.over = true;
 }
 
+/** Pit lane speed limit (laps per sim second): pit lane time + an average stop = the track's pit loss. */
+function pitLaneSpeed(race: RaceState): number {
+  const t = race.tuning;
+  const len = t.pit.laneIn + t.pit.laneOut;
+  const laneTime = race.track.pitLoss * t.pitLossScale - t.pit.avgStop + len * race.track.base;
+  return len / laneTime;
+}
+
+function enterPits(race: RaceState, c: Car): void {
+  const t = race.tuning;
+  c.status = 'pit';
+  c.pitPhase = 'in';
+  c.pitTyre = c.pitPlan;
+  c.pitPlan = null;
+  // standing time: average stop (+ repairs, + waiting for the team mate)
+  let stop = t.pit.avgStop + (c.wingDamage ? t.duel.wingPitExtra : 0) + (c.engineDamage ? t.damage.enginePitExtra : 0);
+  if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) stop += t.pit.doubleStack;
+  const loss = race.track.pitLoss * t.pitLossScale + stop - t.pit.avgStop;
+  c.pitHold = 0;
+  c.pitAwait = !!c.pitGame && c.human && !c.autopilot;
+  if (!c.pitAwait) {
+    // crew performance: usually close to average, sometimes a fumble
+    stop += gauss(c.rng) * t.pit.crewSpread + (chance(c.rng, t.pit.crewFumble) ? t.pit.fumbleLoss : 0);
+  }
+  c.pitTotal = Math.max(1.5, stop);
+  c.stops++;
+  c.closeTime = 0;
+  c.closeTo = null;
+  emit(race, 'pitIn', c, undefined, { tyre: c.pitTyre!, loss: Math.round(loss * 10) / 10 });
+}
+
+/** A car reaches the line (on track or in the pit lane). */
+function crossLine(race: RaceState, c: Car): void {
+  const t = race.tuning;
+  const f = Math.floor(c.dist + 1e-9);
+  c.lap = f;
+  if (f >= 1) {
+    c.lastLap = race.time - c.lapStart;
+    if (c.bestLap === null || c.lastLap < c.bestLap) c.bestLap = c.lastLap;
+    c.tyreLaps++;
+  }
+  c.lapStart = race.time;
+  if (f >= race.track.laps || (race.leaderFinished && f >= 1)) {
+    c.pitPhase = null;
+    finishCar(race, c);
+    return;
+  }
+  c.noise = gauss(c.rng) * t.noise;
+  if (f >= 1 && c.human && c.status === 'running' && c.cond < t.cliffAt + 0.05) emit(race, 'tyresWorn', c, undefined, { cond: Math.round(c.cond * 100) });
+}
+
 function updateWeather(race: RaceState, dt: number): void {
   const w = race.tuning.weather;
   const li = race.leaderFinished ? race.track.laps - 1 : leaderLap(race) - 1;
@@ -316,7 +359,7 @@ function updateWeather(race: RaceState, dt: number): void {
   if (rain > 0 && race.rainNow === 0) emit(race, 'rainStart', undefined, undefined, { intensity: rain });
   if (rain === 0 && race.rainNow > 0) emit(race, 'rainStop');
   race.rainNow = rain;
-  const dl = dt / race.track.base;
+  const dl = dt / REF_LAP;
   const target = rain * 100;
   if (race.wetness < target) race.wetness = Math.min(target, race.wetness + w.rise * dl);
   else race.wetness = Math.max(target, race.wetness - (rain > 0 ? w.dryWhileRaining : w.dry) * dl);
@@ -366,7 +409,7 @@ function startDuel(race: RaceState, att: Car, def: Car): void {
   if (att.duelLap === att.lap || def.duelLap === def.lap) return;
   const busy = (id: string) => race.duels.some((d) => d.state !== 'done' && (d.attacker === id || d.defender === id));
   if (busy(att.id) || busy(def.id)) return;
-  const adv = def.lapTime - att.lapTime;
+  const adv = (def.lapTime - att.lapTime) / lapScale(race.track);
   const lastLap = att.lap >= race.track.laps - 1;
   const duel: Duel = {
     id: race.nextId++,
@@ -493,7 +536,7 @@ export interface DuelOption {
 export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOption[] {
   const att = carById(race, duel.attacker);
   const def = carById(race, duel.defender);
-  const adv = def.lapTime - att.lapTime;
+  const adv = (def.lapTime - att.lapTime) / lapScale(race.track);
   const ot = race.track.overtaking;
   const mods = duelMods(race.tuning, att, def);
   const levels = [0, 1, 2, 3, 4] as const;
@@ -527,7 +570,7 @@ export function duelPreview(race: RaceState, duel: Duel, carId: string): DuelOpt
 function decideDuel(race: RaceState, d: Duel): void {
   const att = carById(race, d.attacker);
   const def = carById(race, d.defender);
-  const adv = def.lapTime - att.lapTime;
+  const adv = (def.lapTime - att.lapTime) / lapScale(race.track);
   if (d.attack === null) d.attack = aiAttack(att, adv, att.lap >= race.track.laps - 1);
   if (d.defend === null) d.defend = aiDefend(def, adv);
   const o = duelOutcomes(race.tuning, race.track.overtaking, d.attack, d.defend, adv, duelMods(race.tuning, att, def));
@@ -576,7 +619,7 @@ function applyDuel(race: RaceState, d: Duel): void {
       emit(race, 'pass', att, def, data);
       return;
     case 'fail':
-      att.loss += t.failLoss;
+      att.loss += t.failLoss[d.attack ?? 1];
       att.cond = Math.max(0, att.cond - t.failWear);
       if (humans) emit(race, 'duelFail', att, def, data);
       return;
@@ -592,10 +635,18 @@ function applyDuel(race: RaceState, d: Duel): void {
       emit(race, 'duelOff', att, def, data);
       damageEngine(race, att, race.tuning.damage.engineFromOff);
       return;
-    case 'crash':
+    case 'crash': {
       att.loss += t.crashLoss;
       def.loss += t.crashLoss;
       emit(race, 'crash', att, def, data);
+      // the one who took the bigger risk caused it: time penalty for risky moves
+      const a = d.attack ?? 0;
+      const df = d.defend ?? 0;
+      const culprit = a >= df ? att : def;
+      if ((culprit === att ? a : df) >= 3) {
+        culprit.penalty += t.contactPenalty;
+        emit(race, 'contactPenalty', culprit, culprit === att ? def : att, { seconds: t.contactPenalty });
+      }
       if (!att.wingDamage && chance(race.rng, d.attack === 4 ? 0.6 : t.wingChance)) {
         att.wingDamage = true;
         emit(race, 'wingDamage', att);
@@ -603,9 +654,10 @@ function applyDuel(race: RaceState, d: Duel): void {
       damageEngine(race, att, race.tuning.damage.engineFromCrash);
       damageEngine(race, def, race.tuning.damage.engineFromCrash / 2);
       if (chance(race.rng, t.safetyCarOnCrash)) {
-        deploySafetyCar(race, int(race.rng, race.tuning.safetyCar.minLaps, race.tuning.safetyCar.maxLaps));
+        deploySafetyCar(race, range(race.rng, race.tuning.safetyCar.minLaps, race.tuning.safetyCar.maxLaps));
       }
       return;
+    }
   }
 }
 
@@ -643,12 +695,10 @@ export function applyCommand(race: RaceState, cmd: Command): boolean {
       if (car.status !== 'pit' || !car.pitAwait) return false;
       const sec = clamp(Number(cmd.seconds) || race.tuning.pit.avgStop, 1.5, 15);
       car.pitAwait = false;
-      car.pitTimer += sec - race.tuning.pit.avgStop;
+      // the game result replaces the average stop (still in the pit lane or already standing)
+      if (car.pitPhase === 'stop') car.pitTimer += sec - race.tuning.pit.avgStop;
+      else car.pitTotal = Math.max(1.5, car.pitTotal + sec - race.tuning.pit.avgStop);
       emit(race, 'pitStopTime', car, undefined, { seconds: Math.round(sec * 10) / 10 });
-      if (cmd.unsafe) {
-        car.penalty += race.tuning.pit.unsafeReleasePenalty;
-        emit(race, 'unsafeRelease', car, undefined, { seconds: race.tuning.pit.unsafeReleasePenalty });
-      }
       return true;
     }
   }

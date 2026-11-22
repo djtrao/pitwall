@@ -64,7 +64,7 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
         teamName: team.name,
         color: team.color,
         human: false,
-        carPace: team.pace,
+        carPace: team.pace * opts.tuning.aiPaceSpread,
         // the driver's own skill plus a little day-to-day form
         driverPace: d.skill + range(rng, -0.04, 0.04),
         startTyre: aiStartTyre(opts.track, wx, rng),

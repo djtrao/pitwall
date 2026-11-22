@@ -12,6 +12,7 @@ import {
   tyreRuleOk,
   wearPenalty,
   wearPerLap,
+  lapScale,
   weatherPenalty,
 } from '../src/sim';
 import { RHEIN } from './helpers';
@@ -46,11 +47,13 @@ describe('tyres (7.1)', () => {
     expect(wearPenalty(0.15, T) - wearPenalty(0.2, T)).toBeGreaterThan(3 * (wearPenalty(0.3, T) - wearPenalty(0.35, T)));
   });
   it('wear per lap follows compound × track × mode', () => {
-    const s = T.tyres.S.wear / 100;
+    // per-lap numbers are given for a 78 s lap and scale with the track's lap time
+    const s = (T.tyres.S.wear / 100) * lapScale(RHEIN);
+    const k = lapScale(RHEIN);
     expect(RHEIN.wear).toBe(1);
     expect(wearPerLap('S', 1, 0, RHEIN, T, false)).toBeCloseTo(s);
-    expect(wearPerLap('M', 1, 0, RHEIN, T, false)).toBeCloseTo(T.tyres.M.wear / 100);
-    expect(wearPerLap('H', 1, 0, RHEIN, T, false)).toBeCloseTo(T.tyres.H.wear / 100);
+    expect(wearPerLap('M', 1, 0, RHEIN, T, false)).toBeCloseTo((T.tyres.M.wear / 100) * k);
+    expect(wearPerLap('H', 1, 0, RHEIN, T, false)).toBeCloseTo((T.tyres.H.wear / 100) * k);
     expect(wearPerLap('S', 3, 0, RHEIN, T, false)).toBeCloseTo(s * T.modes[3].wear);
     expect(wearPerLap('S', 0, 0, RHEIN, T, false)).toBeCloseTo(s * T.modes[0].wear);
     expect(wearPerLap('S', 1, 0, { ...RHEIN, wear: 1.3 }, T, false)).toBeCloseTo(s * 1.3);
@@ -62,8 +65,8 @@ describe('tyres (7.1)', () => {
     expect(T.tyres.M.pace).toBeLessThan(T.tyres.H.pace);
   });
   it('rain tyres wear fast on a drying track', () => {
-    expect(wearPerLap('W', 1, 60, RHEIN, T, false)).toBeCloseTo(0.03);
-    expect(wearPerLap('W', 1, 10, RHEIN, T, false)).toBeCloseTo(0.14);
+    expect(wearPerLap('W', 1, 60, RHEIN, T, false)).toBeCloseTo(0.03 * lapScale(RHEIN));
+    expect(wearPerLap('W', 1, 10, RHEIN, T, false)).toBeCloseTo(0.14 * lapScale(RHEIN));
   });
   it('a soft stint lasts a few laps less than half a race on a medium-wear track', () => {
     expect(lapsToCliff('S', 1, RHEIN, T)).toBeGreaterThan(RHEIN.laps / 3);
@@ -83,12 +86,12 @@ describe('weather (7.4)', () => {
   it('slicks and rain tyres cross over at about 30 % wetness', () => {
     const x = crossoverWetness(T);
     expect(x).toBeGreaterThan(26);
-    expect(x).toBeLessThan(32);
+    expect(x).toBeLessThan(35);
     expect(weatherPenalty('S', x - 3, T)).toBeLessThan(weatherPenalty('W', x - 3, T));
     expect(weatherPenalty('S', x + 3, T)).toBeGreaterThan(weatherPenalty('W', x + 3, T));
   });
   it('everybody is slower on a wet track', () => {
-    expect(weatherPenalty('W', 100, T)).toBeCloseTo(100 * 0.04 + 0.8);
+    expect(weatherPenalty('W', 100, T)).toBeCloseTo(100 * T.weather.allPerWet + T.weather.rainBase);
     expect(weatherPenalty('S', 0, T)).toBe(0);
   });
 });

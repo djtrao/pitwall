@@ -19,6 +19,7 @@ import {
   makeRng,
   QUALI,
   rand,
+  realLapSeconds,
   zonesFor,
   type CarSetup,
   type CornerResult,
@@ -35,8 +36,8 @@ import { fullscreenButton, wireFullscreen } from '../ui/fullscreen';
 import { TrackView } from '../ui/trackview';
 
 const TYRES: Tyre[] = ['S', 'M', 'H', 'W'];
-/** Seconds for a full lap at normal driving speed (prompts slow the car down). */
-const DRIVE_SECONDS = 9;
+/** Share of a race lap's real time for a hot lap without prompts (prompts slow the car down). */
+const DRIVE_SHARE = 0.36;
 const SLOW = 0.1;
 /** Prompt appears this far (lap share) before a corner. */
 const APPROACH = 0.06;
@@ -77,6 +78,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   const { track, tuning } = ctx;
   const wet = ctx.weather.quali * 100;
   const cross = Math.round(crossoverWetness(tuning));
+  const driveSeconds = realLapSeconds(track, tuning) * DRIVE_SHARE;
   const remote = ctx.remote;
   const mine = ctx.cars.filter((c) => (remote ? c.teamId === remote.myTeam : c.human)).sort((a, b) => a.id.localeCompare(b.id));
   const order = [0, 1].flatMap((run) => mine.map((car) => ({ car, run })));
@@ -335,7 +337,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     const driving = phase === 'drive' || phase === 'choose' || phase === 'timing' || phase === 'feedback';
     if (driving) {
       const slow = phase === 'choose' || phase === 'timing';
-      f += (dt / DRIVE_SECONDS) * (slow ? SLOW : 1);
+      f += (dt / driveSeconds) * (slow ? SLOW : 1);
       if (phase === 'drive' && nextCorner < 3 && f >= track.corners[nextCorner].at - APPROACH) showChoice();
       if (phase === 'choose') {
         const left = 1 - (now - phaseStart) / 1000 / QUALI.chooseSeconds;

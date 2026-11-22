@@ -71,6 +71,7 @@ export class DuelView {
   private animAt = 0;
   private animSeconds = 3;
   private caption = '';
+  private subtitle = '';
   private sparks: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
 
   constructor(private cv: HTMLCanvasElement) {
@@ -100,10 +101,11 @@ export class DuelView {
   }
 
   /** Play the ending. */
-  play(outcome: DuelOutcome, caption: string, seconds: number): void {
+  play(outcome: DuelOutcome, caption: string, seconds: number, subtitle = ''): void {
     if (this.outcome) return;
     this.outcome = outcome;
     this.caption = caption;
+    this.subtitle = subtitle;
     this.animSeconds = seconds;
     this.animAt = performance.now();
   }
@@ -385,6 +387,14 @@ export class DuelView {
     c.fillStyle = '#ffd200';
     c.strokeText(this.caption, this.w / 2, this.h * 0.18);
     c.fillText(this.caption, this.w / 2, this.h * 0.18);
+    if (this.subtitle) {
+      // what both drivers chose, so the result makes sense
+      c.font = `700 ${Math.round(size * 0.42)}px 'Titillium Web', system-ui, sans-serif`;
+      c.lineWidth = 4;
+      c.fillStyle = '#ffffff';
+      c.strokeText(this.subtitle, this.w / 2, this.h * 0.18 + size * 0.75);
+      c.fillText(this.subtitle, this.w / 2, this.h * 0.18 + size * 0.75);
+    }
     c.globalAlpha = 1;
   }
 }

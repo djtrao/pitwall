@@ -3,10 +3,11 @@
  * track outline, pit lane next to the start/finish straight, key corners,
  * cars as coloured dots with their numbers, safety car, rain.
  */
-import type { Car, RaceState, Track } from '../sim';
+import { DEFAULT_TUNING, type Car, type RaceState, type Track } from '../sim';
 
-const PIT_FROM = -0.045;
-const PIT_TO = 0.06;
+// pit lane from just before the line to just after it (same numbers as the simulation)
+const PIT_FROM = -DEFAULT_TUNING.pit.laneIn;
+const PIT_TO = DEFAULT_TUNING.pit.laneOut;
 
 function buildTrack(pts: [number, number][]): [number, number][] {
   const dense: [number, number][] = [];
@@ -247,24 +248,15 @@ export class TrackView {
     return 'corner';
   }
 
-  /** Where to draw a car: on track, or on the pit lane while stopping. */
+  /** Where to draw a car: on track, or in the pit lane (the simulation moves it along the lane). */
   private carPosition(car: Car, dist: number): { f: number; lat: number } {
-    const k = Math.floor(dist);
-    const fr = frac(dist);
     if (car.status === 'pit') {
-      // drive in, stop in the box, drive out to the pit exit
-      const prog = car.pitTotal > 0 ? 1 - car.pitTimer / car.pitTotal : 1;
-      const f = prog < 0.75 ? 0.02 * (prog / 0.75) : 0.02 + (PIT_TO - 0.02) * ((prog - 0.75) / 0.25);
-      return { f: k + f, lat: this.pitLat };
-    }
-    if (car.status === 'running' && car.stops > 0 && car.tyreLaps === 0 && car.lap >= 1 && fr < PIT_TO + 0.03) {
-      // just left the pits: wait at the pit exit until the simulated car catches up, then merge
-      const f = Math.max(fr, PIT_TO);
-      const merge = fr < PIT_TO ? 1 : 1 - (fr - PIT_TO) / 0.03;
-      return { f: k + f, lat: this.pitLat * merge };
-    }
-    if (car.status === 'running' && car.pitPlan && fr > 1 + PIT_FROM) {
-      return { f: dist, lat: this.pitLat * ((fr - (1 + PIT_FROM)) / -PIT_FROM) };
+      // ease sideways into / out of the pit lane at its ends
+      const fr = frac(dist);
+      const fromStart = fr > 0.5 ? fr - (1 + PIT_FROM) : fr - PIT_FROM;
+      const toEnd = PIT_TO - (fr > 0.5 ? fr - 1 : fr);
+      const edge = Math.min(1, Math.max(0, Math.min(fromStart, toEnd) / 0.012));
+      return { f: dist, lat: this.pitLat * edge };
     }
     return { f: dist, lat: 0 };
   }

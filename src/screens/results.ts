@@ -17,6 +17,7 @@ function penaltyReasons(race: RaceState): Map<string, string[]> {
   for (const e of race.events) {
     if (e.kind === 'unsafeRelease') add(e.car, `+${e.data?.seconds ?? 5} s 🚦 ${t('penUnsafe')}`);
     if (e.kind === 'penalty') add(e.car, `+${e.data?.seconds ?? 20} s 🛞 ${t('penTyre')}`);
+    if (e.kind === 'contactPenalty') add(e.car, `+${e.data?.seconds ?? 5} s 💥 ${t('penContact')}`);
   }
   return m;
 }

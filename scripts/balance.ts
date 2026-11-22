@@ -301,7 +301,7 @@ function main() {
 
   if (want('rain')) {
     /* --- rain call --- */
-    out(`## Rain call (Rheinring, rain from lap 7 to the end, crossover ${cross.toFixed(0)} % wetness)`);
+    out(`## Rain call (Rheinring, rain from lap 5 to the end, crossover ${cross.toFixed(0)} % wetness)`);
     const rainPlan = (lateLaps: number): Plan => {
       let crossedAt: number | null = null;
       return {
@@ -319,31 +319,31 @@ function main() {
     for (const intensity of [0.4, 0.6, 0.8, 1.0]) {
       const rainSc: Scenario = {
         track: RHEIN,
-        weather: () => ({ quali: 0, laps: Array.from({ length: RHEIN.laps }, (_, i) => (i >= 6 ? intensity : 0)), noise: new Array(12).fill(0) }),
+        weather: () => ({ quali: 0, laps: Array.from({ length: RHEIN.laps }, (_, i) => (i >= 4 ? intensity : 0)), noise: new Array(12).fill(0) }),
       };
       const d: number[] = [];
-      for (let s = 2000; s < 2000 + N; s++) d.push(raceTime(rainSc, rainPlan(3), s).time - raceTime(rainSc, rainPlan(0), s).time);
+      for (let s = 2000; s < 2000 + N; s++) d.push(raceTime(rainSc, rainPlan(2), s).time - raceTime(rainSc, rainPlan(0), s).time);
       rainGains.push(mean(d));
-      out(`  rain ${intensity.toFixed(1)}: box at the crossover vs 3 laps late: good call is ${mean(d).toFixed(1)} s faster`);
+      out(`  rain ${intensity.toFixed(1)}: box at the crossover vs 2 (long) laps late: good call is ${mean(d).toFixed(1)} s faster`);
     }
     const avgRain = mean(rainGains);
-    verdict('Good rain call beats a 3-laps-late one by 10–15 s', avgRain >= 10 && avgRain <= 15, `${rainGains.map((g) => g.toFixed(0)).join(' / ')} s (light → heavy), average ${avgRain.toFixed(1)} s`);
+    verdict('Good rain call beats a late one (2 long laps ≈ 3 old laps) by 10–20 s', avgRain >= 10 && avgRain <= 20, `${rainGains.map((g) => g.toFixed(0)).join(' / ')} s (light → heavy), average ${avgRain.toFixed(1)} s`);
     out();
   }
 
   if (want('sc')) {
     /* --- safety car stop --- */
-    out('## Pit stop under the safety car (Rheinring, SC on lap 7 for 3 laps)');
-    const scScenario: Scenario = { track: RHEIN, safetyCar: { lap: 7, laps: 3, at: 0.3 } };
-    const underSc: Plan = { start: 'M', stops: [{ lap: 7, tyre: 'H' }] };
-    const afterSc: Plan = { start: 'M', stops: [{ lap: 11, tyre: 'H' }] };
+    out('## Pit stop under the safety car (Rheinring, SC on lap 4 for 1.5 laps)');
+    const scScenario: Scenario = { track: RHEIN, safetyCar: { lap: 4, laps: 1.5, at: 0.3 } };
+    const underSc: Plan = { start: 'M', stops: [{ lap: 4, tyre: 'H' }] };
+    const afterSc: Plan = { start: 'M', stops: [{ lap: 6, tyre: 'H' }] };
     const scSolo = compare(scScenario, underSc, afterSc);
     const scField = compare({ ...scScenario, field: true }, underSc, afterSc);
     const noScSame = compare({ track: RHEIN }, underSc, afterSc); // tyre-age effect without a safety car
-    out(`  Alone: stop under SC (lap 7) vs normal stop after it (lap 11): SC stop is ${scSolo.diff.toFixed(1)} s faster`);
+    out(`  Alone: stop under SC (lap 4) vs normal stop after it (lap 6): SC stop is ${scSolo.diff.toFixed(1)} s faster`);
     out(`  (same two plans without any safety car: ${f1(noScSame.diff)} s, so the SC itself is worth ${(scSolo.diff - noScSame.diff).toFixed(1)} s)`);
     out(`  In the field (start P6): SC stop is ${scField.diff.toFixed(1)} s faster`);
-    verdict('A stop under the safety car gains about 8–10 s', scSolo.diff - noScSame.diff >= 7 && scSolo.diff - noScSame.diff <= 12, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field (normal stop costs ${RHEIN.pitLoss} s)`);
+    verdict('A stop under the safety car gains clearly, but is no sure thing (alone ≈ 5–10 s)', scSolo.diff - noScSame.diff >= 5 && scSolo.diff - noScSame.diff <= 10, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field (normal stop costs ${RHEIN.pitLoss} s)`);
     out();
   }
 

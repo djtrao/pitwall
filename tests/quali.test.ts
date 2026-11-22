@@ -7,6 +7,7 @@ import {
   dryWeather,
   gridFromQualifying,
   hitAt,
+  lapScale,
   markerAt,
   randomCentre,
   hotLapTime,
@@ -99,7 +100,7 @@ describe('Hot Lap corner results', () => {
     expect(hotLapTime(base, [cornerResult(2, 'miss', 0)], makeRng(1))).toBeNull();
   });
   it('a second run on the same compound is 0.2 s slower', () => {
-    expect(baseHotLap(humanCar(), 'S', 0, RHEIN, T, true) - baseHotLap(humanCar(), 'S', 0, RHEIN, T, false)).toBeCloseTo(QUALI.usedTyre);
+    expect(baseHotLap(humanCar(), 'S', 0, RHEIN, T, true) - baseHotLap(humanCar(), 'S', 0, RHEIN, T, false)).toBeCloseTo(QUALI.usedTyre * lapScale(RHEIN));
   });
 });
 

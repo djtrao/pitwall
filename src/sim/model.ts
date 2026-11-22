@@ -1,6 +1,13 @@
 import type { Car, Mode, Track, Tyre } from './types';
 import type { Tuning } from './tuning';
 
+/**
+ * All per-lap numbers in the tuning (tyre pace, wear, mode pace, …) are given for a reference lap
+ * of 78 s. Longer tracks scale them up, so a 117 s lap wears tyres 1.5× as much per lap.
+ */
+export const REF_LAP = 78;
+export const lapScale = (track: Track) => track.base / REF_LAP;
+
 /** Time lost because of worn tyres (s per lap). */
 export function wearPenalty(cond: number, t: Tuning): number {
   let p = (1 - cond) * t.wearSlope;
@@ -29,20 +36,20 @@ export function wearPerLap(tyre: Tyre, mode: Mode, wetness: number, track: Track
   }
   r *= t.modes[mode].wear;
   if (safetyCar) r *= t.safetyCar.wear;
-  return r / 100;
+  return (r / 100) * lapScale(track);
 }
 
 /** T = T_base + car + driver + tyre + wear + mode + weather + noise (+ damage). */
 export function carLapTime(c: Car, track: Track, wetness: number, t: Tuning): number {
-  let lt = track.base + c.carPace + c.driverPace;
-  lt += t.tyres[c.tyre].pace + wearPenalty(c.cond, t);
-  lt += t.modes[c.mode].pace;
-  lt += weatherPenalty(c.tyre, wetness, t);
-  lt += c.noise;
-  if (c.flatSpot) lt += t.mistakes.flatSpotPace;
-  if (c.wingDamage) lt += t.duel.wingPace;
-  if (c.engineDamage) lt += t.damage.enginePace;
-  return lt;
+  let d = c.carPace + c.driverPace;
+  d += t.tyres[c.tyre].pace + wearPenalty(c.cond, t);
+  d += t.modes[c.mode].pace;
+  d += weatherPenalty(c.tyre, wetness, t);
+  d += c.noise;
+  if (c.flatSpot) d += t.mistakes.flatSpotPace;
+  if (c.wingDamage) d += t.duel.wingPace;
+  if (c.engineDamage) d += t.damage.enginePace;
+  return track.base + d * lapScale(track);
 }
 
 /** Mistake chance per lap for this car right now. */
@@ -74,7 +81,7 @@ export function stintCost(tyre: Tyre, laps: number, track: Track, t: Tuning, mod
   let cost = 0;
   for (let i = 0; i < laps; i++) {
     const mid = Math.max(0, cond - r / 2);
-    cost += t.tyres[tyre].pace + wearPenalty(mid, t) + (tyre === 'W' ? wetTyrePenalty('W', 0, t) : 0);
+    cost += (t.tyres[tyre].pace + wearPenalty(mid, t) + (tyre === 'W' ? wetTyrePenalty('W', 0, t) : 0)) * lapScale(track);
     cond = Math.max(0, cond - r);
   }
   return cost;
