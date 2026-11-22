@@ -62,55 +62,151 @@ tr.me td { background: rgba(255, 255, 255, 0.07); font-weight: 700; }
 .drow .seg button { width: 48px; }
 .lang { min-width: 48px; }
 
-/* race */
-.topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-.topbar .seg button { min-width: 46px; }
-.lapc { font-size: 24px; font-weight: 900; line-height: 1.1; }
-.race-grid { display: grid; gap: 0 10px; grid-template-areas: 'cv' 'cards' 'wx' 'tower' 'log'; }
-@media (min-width: 900px) {
-  .race-grid { grid-template-columns: 1.25fr 1fr; grid-template-areas: 'cv cards' 'wx tower' 'log tower'; align-items: start; }
-}
-#cvp { grid-area: cv; padding: 6px; } #cards { grid-area: cards; } #wx { grid-area: wx; } #tower { grid-area: tower; } #log { grid-area: log; }
-canvas { width: 100%; display: block; border-radius: 8px; }
-.scbanner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #ffb000; color: #000; font-weight: 900;
-  padding: 4px 14px; border-radius: 8px; letter-spacing: 1px; animation: pulse 1s infinite; z-index: 2; }
-#banner { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6);
-  border-radius: 12px; flex-direction: column; gap: 8px; z-index: 3; }
-#banner b { font-size: 30px; font-weight: 900; }
-#banner .big { width: auto; padding: 12px 28px; }
+/* ================= race screen =================
+   Portrait: stacked. Landscape (phone sideways): tower | track | cards, bar at the bottom. */
+.race { display: grid; gap: 8px; grid-template-columns: 1fr;
+  grid-template-areas: 'bar' 'rotate' 'track' 'cards' 'wxfull' 'tower' 'log'; }
+.r-bar { grid-area: bar; display: flex; align-items: center; gap: 8px; }
+.r-lap { display: flex; flex-direction: column; line-height: 1.1; margin-right: auto; }
+.r-lap b { font-size: 22px; font-weight: 900; white-space: nowrap; }
+.r-wx { display: none; }
+.r-speed button { min-width: 44px; padding: 4px 6px; }
+.r-fs { min-width: 44px; font-size: 20px; }
+.r-tower { grid-area: tower; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; }
+.r-track { grid-area: track; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; overflow: hidden; }
+.r-cards { grid-area: cards; display: grid; gap: 8px; }
+.r-wxfull { grid-area: wxfull; margin: 0; }
+.r-log { grid-area: log; margin: 0; }
+.r-rotate { grid-area: rotate; font-size: 14px; color: var(--mut); text-align: center; }
 
-.dcard { border-left-width: 6px; }
-.crow { display: flex; align-items: center; gap: 8px; font-size: 17px; }
-.cpos { font-weight: 900; font-size: 24px; min-width: 48px; }
-.cname { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wbar { height: 8px; background: #0e1118; border-radius: 4px; margin: 6px 0 4px; overflow: hidden; }
+/* timing tower */
+.r-tower table { width: 100%; }
+.r-tower td { font-size: 14px; padding: 3px 3px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.r-tower td.p { width: 22px; text-align: right; color: var(--mut); font-weight: 700; }
+.r-tower td.n { overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 100%; }
+.r-tower td.n .code { display: none; }
+.r-tower td.ty { width: 22px; }
+.r-tower td.g { text-align: right; font-variant-numeric: tabular-nums; }
+.r-tower tr.follow td { background: rgba(255, 210, 0, 0.18); }
+.pitflag { color: var(--warn); }
+
+/* track overlays */
+.scbanner { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #ffb000; color: #000; font-weight: 900;
+  padding: 2px 12px; border-radius: 8px; letter-spacing: 1px; animation: pulse 1s infinite; z-index: 2; font-size: 15px; }
+.ticker { position: absolute; left: 8px; right: 8px; bottom: 8px; background: rgba(10, 12, 17, 0.85); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px 10px; font-size: 14px; color: #c9d1dc; opacity: 0; transition: opacity 0.4s; pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; }
+.ticker.show { opacity: 1; }
+.ticker.mine { color: #fff; font-weight: 700; border-color: #ffd200; }
+#banner { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6);
+  flex-direction: column; gap: 8px; z-index: 3; }
+#banner b { font-size: 26px; font-weight: 900; }
+#banner .big { width: auto; padding: 10px 24px; }
+
+/* driver cards (compact) */
+.dcard { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid; border-radius: 12px; padding: 6px 8px; min-width: 0; }
+.crow { display: flex; align-items: center; gap: 6px; cursor: pointer; min-height: 30px; }
+.cpos { font-weight: 900; font-size: 20px; min-width: 38px; }
+.cname { flex: 1; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cty { display: flex; align-items: center; gap: 3px; font-size: 14px; white-space: nowrap; }
+.cty .td { width: 22px; height: 22px; border-width: 3px; font-size: 10px; }
+.cfollow { font-size: 15px; opacity: 0.35; padding: 2px 4px; border-radius: 6px; }
+.cfollow.on { opacity: 1; background: #ffd200; }
+.wbar { height: 5px; background: #0e1118; border-radius: 3px; margin: 3px 0; overflow: hidden; }
 .wbar i { display: block; height: 100%; width: 100%; background: var(--ok); transition: width 0.3s; }
-.cinfo { font-size: 14px; color: var(--mut); margin-bottom: 8px; min-height: 20px; }
-.modes button { font-size: 13px; line-height: 1.1; padding: 4px 2px; }
-.modes button span { display: block; font-size: 17px; }
-.tb { padding: 4px; }
-.tb.on { background: #3a4458; color: #fff; border-color: #fff; }
-.boxb { background: #2a1416; border-color: #6b2328; font-weight: 900; font-size: 18px; flex: 1.6 !important; }
+.cinfo { font-size: 13px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
+.cwarn { font-size: 13px; color: var(--warn); line-height: 1.35; min-height: 18px; }
+.cwarn div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modes { margin-top: 4px; gap: 4px; }
+.modes button { font-size: 11px; line-height: 1; padding: 2px 1px; min-width: 0; }
+.modes button span { display: block; font-size: 16px; margin-bottom: 1px; }
+.pitrow { margin-top: 4px; gap: 4px; }
+.tb { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 2px 6px; flex: 1.2 !important; }
+.tb small { font-size: 12px; font-weight: 700; }
+.tb .td { width: 24px; height: 24px; border-width: 3px; font-size: 10px; }
+.boxb { background: #2a1416; border-color: #6b2328; font-weight: 900; font-size: 17px; flex: 1 !important; }
 .boxb.on { background: var(--acc); color: #fff; border-color: var(--acc); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: 0.65; } }
-.cwarn { font-size: 14px; color: var(--warn); margin-top: 6px; line-height: 1.35; }
-.cwarn:empty { display: none; }
 
-.wetbar { position: relative; height: 12px; border-radius: 6px; background: #0e1118; overflow: visible; margin: 6px 0; }
-.wetbar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #3a7bd5, #00d2ff); }
-.wetbar .x { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #fff; }
+/* weather */
+.wetbar { position: relative; height: 10px; border-radius: 5px; background: #0e1118; margin: 5px 0; }
+.wetbar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #3a7bd5, #00d2ff); }
+.wetbar .x { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
 .hint { font-size: 14px; color: var(--mut); }
 .fc { display: flex; gap: 6px; flex-wrap: wrap; }
 .fcb { flex: 1; min-width: 64px; background: #0e1118; border: 1px solid var(--line); border-radius: 10px; padding: 6px; text-align: center; }
 .fcb small { display: block; color: var(--mut); font-size: 12px; }
 .fcb b { font-size: 18px; }
-
-#tower td { font-size: 14px; padding: 4px 3px; }
 #log div.msg { font-size: 14px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 #log div.msg.mine { color: #fff; font-weight: 600; }
 #log div.msg:not(.mine) { color: #b8c0cc; }
+.r-track canvas { width: 100%; display: block; border-radius: 8px; }
+
+/* ---------- landscape: everything on one screen ---------- */
+@media (orientation: landscape) {
+  body.racing #app { max-width: none; padding: 0; }
+  body.racing { overflow: hidden; }
+  .race {
+    height: 100vh; height: 100dvh; gap: 6px;
+    padding: 6px max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    grid-template-columns: clamp(170px, 24vw, 280px) minmax(0, 1fr) clamp(205px, 25vw, 300px);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: 'tower track cards' 'bar bar cards';
+  }
+  .r-wxfull, .r-log, .r-rotate { display: none; }
+  .r-tower { overflow: hidden; padding: 4px; display: flex; }
+  .r-tower table { height: 100%; }
+  .r-tower td { font-size: clamp(11px, 3.2vh, 15px); padding: 0 3px; }
+  .r-tower .td.sm { width: 16px; height: 16px; font-size: 8px; border-width: 2px; }
+  .r-track { padding: 0; }
+  .r-track canvas { position: absolute; inset: 0; width: 100%; height: 100% !important; border-radius: 12px; }
+  .r-cards { grid-template-rows: 1fr 1fr; overflow: hidden; gap: 6px; }
+  .dcard { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+  .cwarn { height: 18px; overflow: hidden; }
+  .modes button, .pitrow button { min-height: 40px; }
+  .r-bar { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 3px 6px; gap: 10px; }
+  .r-lap { margin-right: 0; }
+  .r-lap b { font-size: 20px; }
+  .r-wx { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .wx-icon { font-size: 22px; }
+  .wx-wet { flex: 1; min-width: 90px; white-space: nowrap; overflow: hidden; }
+  .wx-wet .wetbar { margin: 2px 0 0; height: 7px; }
+  .wx-fc { display: flex; gap: 4px; }
+  .wx-fc span { display: flex; flex-direction: column; align-items: center; background: #0e1118; border-radius: 6px; padding: 1px 6px; line-height: 1.15; }
+  .wx-fc small { font-size: 10px; color: var(--mut); }
+  .wx-fc b { font-size: 13px; }
+  .r-speed button { min-height: 40px; min-width: 40px; }
+  .r-fs { min-height: 40px; min-width: 40px; }
+}
+/* very short screens (small phones): hide the forecast in the bar */
+@media (orientation: landscape) and (max-width: 700px) {
+  .wx-fc { display: none; }
+  .r-tower td.n .nm { display: none; }
+  .r-tower td.n .code { display: inline; }
+}
+@media (orientation: landscape) and (max-height: 340px) {
+  .cinfo { display: none; }
+}
 
 /* results: fit a phone screen */
 table.res td, table.res th { font-size: 14px; padding: 6px 3px; }
 table.res td:nth-child(2) { white-space: normal; }
 table.res td:nth-child(3) .pill { display: block; width: max-content; margin: 2px 0 0; }
+.drow .tb.on, .tb.on { background: #3a4458; color: #fff; border-color: #fff; }
+
+/* duel prompt on the track */
+.duel { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 4; background: rgba(10, 12, 17, 0.94);
+  border: 2px solid #ffd200; border-radius: 12px; padding: 6px; display: none; }
+.duel.show { display: block; animation: pop 0.2s ease-out; }
+@keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.duel-title { font-weight: 900; font-size: 16px; text-align: center; }
+.duel-time { height: 5px; background: #0e1118; border-radius: 3px; margin: 4px 0 6px; overflow: hidden; }
+.duel-time i { display: block; height: 100%; background: #ffd200; width: 100%; }
+.duel-opts { display: flex; gap: 6px; }
+.duel-opts button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px; min-height: 56px; line-height: 1.15; }
+.dc-name { font-size: 15px; font-weight: 900; }
+.dc-chance { font-size: 12px; font-weight: 600; color: #c9d1dc; }
+.dc-risk { font-size: 11px; font-weight: 600; }
+.duel-opts button.risk-high { border-color: #a33; }
+.duel-opts button.risk-mid { border-color: #a83; }
+.wx-fc span small { white-space: nowrap; }

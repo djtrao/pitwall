@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyCommand,
+  duelPreview,
   buildField,
   createRace,
   dryWeather,
@@ -208,6 +209,21 @@ describe('weather in the race', () => {
 });
 
 describe('duels (7.5)', () => {
+  it('the duel preview gives chances and crash risks for each choice', () => {
+    const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
+    const fast = humanCar('fast-1', { autoDuel: false });
+    const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
+    while (!r.duels.length) step(r);
+    const att = duelPreview(r, r.duels[0], 'fast-1');
+    expect(att.map((o) => o.choice)).toEqual(['inside', 'outside', 'wait']);
+    expect(att[2].success).toBe(0);
+    expect(att[0].crash).toBe(0);
+    expect(att[1].crash).toBeGreaterThan(0); // only Outside can crash
+    for (const o of att) expect(o.success + o.crash).toBeLessThanOrEqual(1);
+    const def = duelPreview(r, r.duels[0], 'slow-1');
+    expect(def.map((o) => o.choice)).toEqual(['coverInside', 'coverOutside', 'letGo']);
+    expect(def[2].success).toBeLessThan(def[0].success); // letting go only "holds" if the attacker waits
+  });
   it('a faster car cannot drive through a slower one and has to win a duel', () => {
     const slow = humanCar('slow-1', { carPace: 2, autoDuel: true, human: false, autopilot: false });
     const fast = humanCar('fast-1', { autoDuel: true });
@@ -234,13 +250,15 @@ describe('duels (7.5)', () => {
     expect(d.resolved).toBe(true);
     expect(d.outcome).toBe('wait');
   });
-  it('unanswered human duels are decided automatically after 6 s', () => {
+  it('unanswered human duels are decided automatically after the answer time (real seconds, any speed)', () => {
     const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
     const fast = humanCar('fast-1', { autoDuel: false });
     const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
     while (!r.duels.length) step(r);
     const d = r.duels[0];
-    for (let i = 0; i < 59; i++) step(r);
+    r.speed = 4; // faster race, same real answer time
+    const ticks = Math.round(RHEIN_TUNING.duel.answerSeconds / 0.1);
+    for (let i = 0; i < ticks - 1; i++) step(r);
     expect(d.resolved).toBe(false);
     step(r);
     step(r);

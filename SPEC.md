@@ -11,7 +11,7 @@ Build "Pit Wall", a Formula 1 team-manager game for phones. 1 to 4 players each 
 
 ## 2. Platform and architecture
 
-- **Mobile web app (PWA)**, portrait first, installable on the home screen, works on iPhone and Android browsers. No app store.
+- **Mobile web app (PWA)**, **landscape first** (the phone is held sideways, Android first), portrait still usable, installable on the home screen, works on iPhone and Android browsers. No app store.
 - **TypeScript + Vite**, rendering with Canvas 2D. No heavy game engine needed.
 - **Simulation as a pure, deterministic module** (seeded random number generator, no DOM). The same module runs in the browser for single player and on the server for multiplayer.
 - **Multiplayer:** one authoritative server room per game, connected by WebSocket. Propose a free or very cheap hosting option (for example PartyKit / Cloudflare Durable Objects, or a small Node server on Fly.io) and explain the choice before building it.
@@ -142,7 +142,8 @@ Keep the prototype model:
 
 When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel starts.
 
-- If a human driver is involved, their phone shows a prompt with 6 seconds to choose. The race does not pause. If nobody answers, the game chooses automatically. Each player can switch on "Auto duels" per driver.
+- **Duel prompts only for the car you are following:** when a player taps a driver card, the track zooms in and follows that car. While following one of your own cars, every duel of that car shows a prompt with **5 seconds** to choose. The race does not pause. If nobody answers, the driver decides by himself (same logic as the AI). Duels of cars you are not following are always decided automatically.
+- Each choice shows its chance ("Pass: 70 %" / "Stay ahead: 60 %") and a **risk symbol** for the crash risk: 🟢 low, 🟡 medium, 🔴 high (colour + icon + word).
 - **Attacker** chooses: Inside, Outside, or Wait (stay behind, save tyres). **Defender** chooses: Cover inside, Cover outside, or Let him go.
 - AI-only duels are resolved automatically with the same table.
 
@@ -170,10 +171,12 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 
 ## 8. Race screen and UI
 
-- Layout as in the prototype, portrait first: top bar (lap counter, track name, speed buttons), track view, the player's two driver cards, weather panel, timing tower, team radio.
+- **Landscape layout (main):** timing tower on the left, track view in the centre, the player's two compact driver cards on the right, a bottom bar with lap counter, weather (wetness, crossover marker, rain chance) and speed buttons. The newest team radio message shows as a strip on the track. A fullscreen button (Android) also locks landscape.
+- **Portrait layout (fallback):** everything stacked: top bar, track view, driver cards, weather panel, timing tower, team radio.
+- **Camera:** tapping a driver card (or a timing tower row) zooms the track in and follows that car; tapping again or tapping the track zooms out.
 - **Track view:** top-down track, cars as dots in team colour with their number, the player's own cars highlighted. Pitting cars move along the pit lane. Rain shown as streaks, a wet track darker. Safety car shown as its own car.
 - **Driver card:** position, tyre and condition bar, last lap, gap ahead and behind, buttons for the 4 driving modes, tyre choice + BOX button (pits at the end of the lap, can be cancelled), warnings (two-compound rule, worn tyres, damage).
-- **Duel prompt:** a big, clear pop-up on the driver card with the three choices and a 6-second countdown.
+- **Duel prompt:** a big, clear pop-up on the zoomed track with the three choices, their chances and risk symbols, and a 5-second countdown bar.
 - Big touch targets (at least 44 px), readable text for 11-year-olds, short words, colour plus icons (not colour alone).
 - Results screen with positions gained or lost, pit stops, penalties, points; then the championship tables. A season-end screen with the champion.
 - Sounds (engine hum, radio beep, "Box box") as an optional later step.
