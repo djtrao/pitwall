@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pit Wall – F1 Manager Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c11;--panel:#141821;--line:#252b37;--text:#eef1f6;--mut:#8b94a5;--acc:#e10600}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Titillium Web',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+#app{max-width:1120px;margin:0 auto;padding:12px}
+h1{font-size:28px;margin:4px 0 2px;font-weight:900;letter-spacing:.5px}
+h2{font-size:20px;margin:4px 0 8px}
+h3{font-size:15px;margin:0 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:1px}
+.sub{color:var(--mut);margin:0 0 12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;position:relative}
+button{font:inherit;color:var(--text);background:#222935;border:1px solid #343d4e;border-radius:8px;padding:8px 6px;cursor:pointer;touch-action:manipulation;font-weight:600}
+button:active{transform:scale(.97)}
+button.on{background:var(--text);color:#0a0c11;border-color:var(--text)}
+.big{display:block;width:100%;padding:14px;font-size:18px;font-weight:900;background:var(--acc);border:none;letter-spacing:1px;margin-top:6px}
+.seg{display:flex;gap:6px}.seg button{flex:1}
+.mt{margin-top:6px}
+input{font:inherit;width:100%;padding:10px;border-radius:8px;border:1px solid #343d4e;background:#0e1118;color:var(--text)}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+.row2{display:grid;grid-template-columns:1fr 90px;gap:8px}
+.sw{display:flex;flex-wrap:wrap;gap:8px}
+.sw button{width:38px;height:38px;border-radius:50%;padding:0;border:3px solid transparent}
+.sw button.on{border-color:#fff;box-shadow:0 0 0 2px #000 inset}
+.td{display:inline-flex;width:24px;height:24px;border-radius:50%;border:4px solid;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:#0d0d0d;color:#fff;vertical-align:middle;line-height:1}
+.td.sm{width:19px;height:19px;border-width:3px;font-size:9px}
+table{width:100%;border-collapse:collapse}
+td,th{padding:5px 6px;text-align:left;font-size:14px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
+table.wrap td,table.wrap th{white-space:normal}
+tr.me td{background:rgba(255,255,255,.06);font-weight:700}
+.chip{display:inline-block;width:6px;height:16px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.stat{background:#0e1118;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.fc{display:flex;gap:6px;flex-wrap:wrap}
+.fcb{flex:1;min-width:64px;background:#0e1118;border:1px solid var(--line);border-radius:10px;padding:6px;text-align:center}
+.fcb small{display:block;color:var(--mut);font-size:11px}
+.fcb b{font-size:17px}
+.mut{color:var(--mut)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.topbar .seg button{min-width:44px}
+.lapc{font-size:22px;font-weight:900}
+.race-grid{display:grid;gap:0 10px;grid-template-areas:"cv" "cards" "wx" "tower" "log"}
+@media(min-width:900px){.race-grid{grid-template-columns:1.25fr 1fr;grid-template-areas:"cv cards" "wx tower" "log tower";align-items:start}}
+#cvp{grid-area:cv;padding:6px}#cards{grid-area:cards}#wx{grid-area:wx}#tower{grid-area:tower}#log{grid-area:log}
+canvas{width:100%;display:block;border-radius:8px}
+.dcard{border-left-width:6px}
+.crow{display:flex;align-items:center;gap:8px;font-size:16px}
+.cpos{font-weight:900;font-size:22px;min-width:44px}
+.cname{flex:1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wbar{height:6px;background:#0e1118;border-radius:3px;margin:6px 0 4px;overflow:hidden}
+.wbar i{display:block;height:100%;width:100%;background:#3c3}
+.cinfo{font-size:13px;color:var(--mut);margin-bottom:6px;min-height:18px}
+.box{background:#2a1416;border-color:#6b2328;font-weight:900;flex:1.4!important}
+.box.on{background:var(--acc);color:#fff;border-color:var(--acc);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.65}}
+.tb.on{background:#3a4458;color:#fff;border-color:#fff}
+.cwarn{font-size:12px;color:#ffb347;margin-top:4px;min-height:0}
+#log div{font-size:13px;padding:2px 0;border-bottom:1px dashed var(--line)}
+.wetbar{height:10px;border-radius:5px;background:#0e1118;overflow:hidden;margin:4px 0}
+.wetbar i{display:block;height:100%;background:linear-gradient(90deg,#3a7bd5,#00d2ff)}
+#banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);border-radius:12px;flex-direction:column;gap:8px}
+#banner b{font-size:30px;font-weight:900}
+.hint{font-size:13px;color:var(--mut)}
+.qcard{display:grid;gap:6px}
+.trophy{font-size:44px;text-align:center}
+.pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;background:#222935;margin-left:6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script id="sim">
+/* ================= GAME DATA & SIMULATION (no DOM) ================= */
+const rnd = Math.random;
+const gauss = () => (rnd() + rnd() + rnd() - 1.5) * 2; // ~N(0,1)
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+const COMP = {
+  S: { n: 'Soft',   c: '#ff3333', pace: 0,   wear: 9 },
+  M: { n: 'Medium', c: '#ffd400', pace: 0.6, wear: 6 },
+  H: { n: 'Hard',   c: '#f4f4f4', pace: 1.2, wear: 4 },
+  W: { n: 'Rain',   c: '#2f8cff', pace: 0,   wear: 3 }
+};
+const MODES = [
+  { n: 'Conserve', pace: 0.4,   wear: 0.65 },
+  { n: 'Normal',   pace: 0,     wear: 1 },
+  { n: 'Push',     pace: -0.35, wear: 1.5 }
+];
+const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+
+const TRACKS = [
+  { name: 'Rheinring', desc: 'A classic all-rounder along the river. Rain is never far away.',
+    laps: 16, base: 78, wear: 1.0, ot: 0.55, pitLoss: 21, rain: 0.45,
+    pts: [[0.45,0.86],[0.75,0.86],[0.9,0.72],[0.88,0.47],[0.75,0.37],[0.8,0.15],[0.57,0.1],[0.47,0.3],[0.3,0.32],[0.2,0.12],[0.07,0.3],[0.09,0.7],[0.2,0.86]] },
+  { name: 'Monte Sol', desc: 'Tight street circuit by the sea. Overtaking is really hard – qualifying matters!',
+    laps: 18, base: 72, wear: 0.8, ot: 0.22, pitLoss: 19, rain: 0.15,
+    pts: [[0.5,0.88],[0.8,0.88],[0.93,0.76],[0.8,0.6],[0.92,0.45],[0.86,0.16],[0.66,0.11],[0.62,0.36],[0.46,0.42],[0.42,0.15],[0.2,0.1],[0.08,0.28],[0.26,0.5],[0.08,0.68],[0.2,0.88]] },
+  { name: 'Waldkurs', desc: 'Fast and flowing through the forest. Eats tyres – and it rains a lot.',
+    laps: 15, base: 84, wear: 1.3, ot: 0.8, pitLoss: 23, rain: 0.6,
+    pts: [[0.5,0.9],[0.84,0.86],[0.95,0.62],[0.8,0.46],[0.92,0.2],[0.66,0.08],[0.5,0.26],[0.35,0.1],[0.12,0.14],[0.05,0.44],[0.22,0.58],[0.1,0.78],[0.25,0.9]] }
+];
+
+const AI_TEAMS = [
+  { team: 'Falcon Racing', col: '#2b4bff', perf: 0.0,  d: [['Max Falke', 1], ['Leo Sturm', 11]] },
+  { team: 'Scuderia Rosso', col: '#e10600', perf: 0.25, d: [['Carlo Bianchi', 16], ['Enzo Moretti', 55]] },
+  { team: 'Silver Arrow', col: '#00d2be', perf: 0.35, d: [['Lewis Hammer', 44], ['Georg Rasch', 63]] },
+  { team: 'Papaya GP', col: '#ff8700', perf: 0.65, d: [['Lando Nord', 4], ['Oscar Pike', 81]] },
+  { team: 'Green Mamba', col: '#2ecc40', perf: 0.95, d: [['Fernando Alto', 14], ['Lars Kiesel', 18]] }
+];
+const PLAYER_PERF = 0.5;
+
+function shortName(n) { const w = n.trim().split(/\s+/); return (w[w.length - 1] || 'DRV').slice(0, 3).toUpperCase(); }
+
+/* ---------- Weather ---------- */
+function genWeather(t) {
+  const s = 1 - Math.pow(1 - t.rain, 1 / t.laps); // start-of-rain chance per lap
+  let raining = rnd() < t.rain * 0.3;
+  let inten = 0.25 + rnd() * 0.75;
+  const q = raining ? inten : 0;
+  const laps = [];
+  for (let l = 0; l < t.laps; l++) {
+    if (raining) { if (rnd() > 0.82) raining = false; }
+    else if (rnd() < s) { raining = true; inten = 0.25 + rnd() * 0.75; }
+    laps.push(raining ? inten : 0);
+  }
+  const noise = Array.from({ length: 12 }, () => rnd() * 2 - 1);
+  return { q, laps, noise };
+}
+// probability shown for laps [from, to) as seen at lap `now`
+function forecastP(t, wx, from, to, now, bi) {
+  let wet = 0, n = 0;
+  for (let l = from; l < to && l < t.laps; l++) { if (wx.laps[l] > 0) wet++; n++; }
+  const trueFrac = n ? wet / n : 0;
+  const acc = clamp(1 - (from - now) / 14, 0.15, 0.95);
+  const prior = t.rain * 0.5;
+  const p = prior * (1 - acc) + trueFrac * acc + wx.noise[bi % 12] * 0.18 * (1 - acc);
+  return Math.round(clamp(p, 0.02, 0.98) * 10) * 10;
+}
+
+/* ---------- Race model ---------- */
+let R = null; // current race state
+
+function wetPenalty(tyre, w) { return tyre === 'W' ? Math.max(0, 35 - w) * 0.11 + 0.8 : Math.max(0, w - 15) * 0.12; }
+
+function lapTime(c) {
+  const w = R.wet;
+  let t = R.t.base + c.perf + c.skill + COMP[c.tyre].pace + MODES[c.mode].pace + c.noise;
+  t += (1 - c.cond) * 1.2 + (c.cond < 0.2 ? (0.2 - c.cond) * 15 : 0);
+  t += w * 0.04 + wetPenalty(c.tyre, w);
+  return t;
+}
+function wearRate(c) { // % per lap
+  const w = R.wet; let r;
+  if (c.tyre === 'W') r = w < 25 ? 14 : 3;
+  else { r = COMP[c.tyre].wear * R.t.wear; if (w > 40) r *= 0.6; }
+  return r * MODES[c.mode].wear;
+}
+function qualiTime(d, tyre, t, wet) {
+  return t.base + d.perf + d.skill + COMP[tyre].pace - 0.35 + wet * 0.04 + wetPenalty(tyre, wet) + gauss() * 0.25;
+}
+function ruleOK(c) { const dry = [...c.used].filter(x => x !== 'W'); return dry.length >= 2 || c.used.has('W'); }
+
+function pickDry(c, left) {
+  const dry = [...c.used].filter(x => x !== 'W');
+  const mustChange = !c.used.has('W') && dry.length === 1 ? dry[0] : null;
+  const opts = ['S', 'M', 'H'].filter(k => k !== mustChange);
+  const safe = rnd() < 0.25;
+  for (const k of opts) {
+    const end = 1 - COMP[k].wear * R.t.wear / 100 * left;
+    if (end >= (safe ? 0.3 : 0.2)) return k;
+  }
+  return opts[opts.length - 1];
+}
+
+function aiDecide(c, f) {
+  const left = R.t.laps - f;
+  if (left <= 0) return;
+  const w = R.wet, rainingNow = R.rainNow > 0;
+  c.mode = left <= 3 ? 2 : 1;
+  if (c.tyre !== 'W') {
+    if (w > c.wetTh && left >= 2) { c.pitReq = 'W'; return; }
+  } else {
+    if (w < c.dryTh && !rainingNow && left >= 2) c.pitReq = pickDry(c, left);
+    return;
+  }
+  const wr = wearRate(c) / 100;
+  const endCond = c.cond - wr * left;
+  if (ruleOK(c) && endCond > 0.08) return;
+  if (c.cond < 0.3 + c.agg * 0.1 && left >= 2) c.pitReq = pickDry(c, left);
+  else if (!ruleOK(c) && left <= 2) c.pitReq = pickDry(c, left);
+}
+
+function initRace(t, wx, grid) {
+  R = { t, wx, time: 0, wet: wx.q * 100, rainNow: wx.q, lastRain: wx.q > 0, cars: grid, leaderDone: false, over: false, log: [] };
+  grid.forEach((c, i) => {
+    Object.assign(c, {
+      dist: -0.0015 - i * 0.006, prevFloor: -1, cond: 1, mode: 1, pitReq: null, pitTimer: 0, spin: 0,
+      finished: false, finishTime: 0, lapsDone: 0, lapStart: 0, lastLap: null, best: null,
+      used: new Set([c.tyre]), penalty: 0, noise: gauss() * 0.3, lat: 0, latT: 0, v: 0, lt: t.base,
+      wetTh: 26 + rnd() * 14, dryTh: 16 + rnd() * 10, agg: rnd(), grid: i + 1, stops: 0,
+      pitSel: c.tyre === 'W' ? 'M' : (c.tyre === 'S' ? 'M' : 'S')
+    });
+  });
+}
+function rlog(msg) { R.log.unshift({ t: R.time, msg }); if (R.log.length > 30) R.log.pop(); }
+
+function standings() {
+  return R.cars.slice().sort((a, b) => {
+    if (a.finished && b.finished) return (b.lapsDone - a.lapsDone) || (a.finishTime - b.finishTime);
+    if (a.finished) return -1; if (b.finished) return 1;
+    return b.dist - a.dist;
+  });
+}
+
+function tick(dt) {
+  const t = R.t;
+  R.time += dt;
+  let lead = -1;
+  for (const c of R.cars) if (!c.finished && c.dist > lead) lead = c.dist;
+  if (R.leaderDone) lead = t.laps;
+  const li = clamp(Math.floor(lead), 0, t.laps - 1);
+  const rain = R.wx.laps[li];
+  R.rainNow = rain;
+  if (rain > 0 && !R.lastRain) rlog(rain > 0.55 ? '🌧️ Heavy rain is starting!' : '🌦️ Light rain is starting!');
+  if (rain === 0 && R.lastRain) rlog('☀️ The rain has stopped – the track will dry.');
+  R.lastRain = rain > 0;
+  const dl = dt / t.base, target = rain * 100;
+  if (R.wet < target) R.wet = Math.min(target, R.wet + 40 * dl);
+  else R.wet = Math.max(target, R.wet - (rain > 0 ? 20 : 10) * dl);
+
+  // pit / spin timers, lap times
+  for (const c of R.cars) {
+    if (c.finished) continue;
+    if (c.pitTimer > 0) {
+      c.pitTimer -= dt;
+      if (c.pitTimer <= 0) {
+        c.pitTimer = 0; c.tyre = c.newTyre; c.cond = 1; c.used.add(c.tyre); c.stops++;
+        if (c.player) rlog(`🔧 ${c.name} leaves the pits on ${COMP[c.tyre].n} tyres`);
+      }
+      continue;
+    }
+    if (c.spin > 0) { c.spin -= dt; continue; }
+    c.lt = lapTime(c);
+  }
+  // interaction on track (front to back)
+  const order = R.cars.filter(c => !c.finished && c.pitTimer <= 0 && c.spin <= 0).sort((a, b) => b.dist - a.dist);
+  for (let i = 0; i < order.length; i++) {
+    const c = order[i];
+    c.v = 1 / c.lt;
+    c.latT = 0;
+    if (i === 0) continue;
+    const a = order[i - 1];
+    const gap = a.dist - c.dist;
+    if (gap < 0.008) c.latT = a.latT > 0 ? -7 : 7;
+    if (gap < 0.0045 && c.v > a.v) {
+      const delta = 1 / a.v - c.lt; // seconds per lap faster
+      const p = dt * (delta * 0.25 + 0.01) * t.ot;
+      if (rnd() < p) {
+        const ad = a.dist; a.dist = c.dist; c.dist = ad + 0.0004;
+        order[i - 1] = c; order[i] = a;
+        if (c.player || a.player) {
+          const pos = standings().indexOf(c) + 1;
+          rlog(c.player ? `⚔️ ${c.name} overtakes ${a.name} – now P${pos}!` : `😬 ${a.name} is overtaken by ${c.name}`);
+        }
+      } else c.v = a.v;
+    }
+  }
+  // move, wear, line crossings
+  for (const c of R.cars) {
+    if (c.finished) { c.dist += dt / (t.base + 8); continue; }
+    if (c.pitTimer > 0 || c.spin > 0) continue;
+    c.dist += c.v * dt;
+    c.cond = Math.max(0, c.cond - wearRate(c) / 100 * dt / c.lt);
+    c.lat += (c.latT - c.lat) * Math.min(1, dt * 2);
+    const f = Math.floor(c.dist);
+    if (f > c.prevFloor) {
+      c.prevFloor = f;
+      if (f >= 1) { c.lastLap = R.time - c.lapStart; if (!c.best || c.lastLap < c.best) c.best = c.lastLap; }
+      c.lapStart = R.time;
+      if (f >= t.laps || (R.leaderDone && f >= 1)) {
+        c.finished = true; c.finishTime = R.time; c.lapsDone = f;
+        if (!R.leaderDone) rlog(`🏁 ${c.name} wins the race!`);
+        R.leaderDone = true;
+        if (!ruleOK(c)) { c.penalty = 20; if (c.player) rlog(`⚠️ ${c.name}: +20s penalty – used only one dry tyre type!`); }
+        else if (c.player) rlog(`🏁 ${c.name} crosses the finish line`);
+        continue;
+      }
+      c.noise = gauss() * 0.3;
+      if (!c.player) aiDecide(c, f);
+      if (c.pitReq && f >= 1) {
+        c.pitTimer = t.pitLoss; c.newTyre = c.pitReq; c.pitReq = null;
+        if (c.player) rlog(`📻 BOX BOX! ${c.name} pits for ${COMP[c.newTyre].n} tyres`);
+        else if (c.newTyre === 'W') rlog(`🌧️ #${c.num} ${c.name} pits for rain tyres`);
+      } else if (f >= 1 && c.tyre !== 'W' && R.wet > 45) {
+        const p = (R.wet - 45) / 200 * [0.5, 1, 1.8][c.mode];
+        if (rnd() < p) { c.spin = 6; rlog(`💫 ${c.name} spins on slick tyres in the wet!`); }
+      }
+    }
+  }
+  if (!R.over && R.cars.every(c => c.finished)) R.over = true;
+}
+
+function results() {
+  return R.cars.slice().sort((a, b) => (b.lapsDone - a.lapsDone) || ((a.finishTime + a.penalty) - (b.finishTime + b.penalty)));
+}
+</script>
+
+<script>
+/* ================= UI ================= */
+const app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const fmt = t => { if (t == null) return '–'; const m = Math.floor(t / 60); return m + ':' + (t % 60).toFixed(3).padStart(6, '0'); };
+const td = (k, sm) => `<span class="td${sm ? ' sm' : ''}" style="border-color:${COMP[k].c}">${k}</span>`;
+const lum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; };
+const PALETTE = ['#ffd200', '#9b59ff', '#ff4fa3', '#ffffff', '#7fdbff', '#b6ff00', '#8b5a2b', '#1a1a1a'];
+
+const G = { player: null, drivers: [], round: 0, pts: {}, tpts: {}, wx: null, grid: null };
+
+function loadTeam() {
+  try { const s = localStorage.getItem('pitwall-team'); if (s) return JSON.parse(s); } catch (e) {}
+  return { team: 'Basel Rockets', col: '#ffd200', d: [['Kenny Junior', 7], ['Alex Speed', 27]] };
+}
+function saveTeam(p) { try { localStorage.setItem('pitwall-team', JSON.stringify(p)); } catch (e) {} }
+
+/* ---------- Setup ---------- */
+function screenSetup() {
+  const p = G.player || loadTeam();
+  app.innerHTML = `
+  <h1>🏎️ PIT WALL</h1><p class="sub">F1 manager prototype · single player vs. 5 AI teams · 3-race season</p>
+  <div class="panel">
+    <h2>Your team</h2>
+    <label>Team name</label><input id="tn" maxlength="22" value="${esc(p.team)}">
+    <label>Team colour</label>
+    <div class="sw" id="sw">${PALETTE.map(c => `<button data-c="${c}" class="${c === p.col ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
+    ${[0, 1].map(i => `
+      <div class="row2"><div><label>Driver ${i + 1}</label><input id="dn${i}" maxlength="20" value="${esc(p.d[i][0])}"></div>
+      <div><label>Number</label><input id="dnum${i}" type="number" min="2" max="99" value="${p.d[i][1]}"></div></div>`).join('')}
+    <div id="err" class="cwarn"></div>
+    <button class="big" id="go">START SEASON</button>
+  </div>`;
+  let col = p.col;
+  document.getElementById('sw').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    col = b.dataset.c; document.querySelectorAll('#sw button').forEach(x => x.classList.toggle('on', x === b));
+  };
+  document.getElementById('go').onclick = () => {
+    const v = id => document.getElementById(id).value.trim();
+    const np = { team: v('tn') || 'My Team', col, d: [[v('dn0') || 'Driver One', +v('dnum0') || 7], [v('dn1') || 'Driver Two', +v('dnum1') || 27]] };
+    const taken = AI_TEAMS.flatMap(t => t.d.map(d => d[1]));
+    const bad = np.d.find(d => taken.includes(d[1]) || d[1] < 2 || d[1] > 99);
+    if (bad || np.d[0][1] === np.d[1][1]) {
+      document.getElementById('err').textContent = `Number ${bad ? bad[1] : np.d[0][1]} is not available. Taken: ${taken.join(', ')}`; return;
+    }
+    G.player = np; saveTeam(np); newSeason();
+  };
+}
+
+function newSeason() {
+  const p = G.player;
+  G.drivers = [];
+  p.d.forEach(([name, num], i) => G.drivers.push({ id: 'P' + i, name, num, team: p.team, col: p.col, perf: PLAYER_PERF, skill: 0, player: true, pidx: i }));
+  AI_TEAMS.forEach((t, ti) => t.d.forEach(([name, num], i) => G.drivers.push({ id: `A${ti}_${i}`, name, num, team: t.team, col: t.col, perf: t.perf, skill: (rnd() - 0.5) * 0.3, player: false })));
+  G.round = 0; G.pts = {}; G.tpts = {};
+  G.drivers.forEach(d => { G.pts[d.id] = 0; G.tpts[d.team] = 0; });
+  screenBriefing();
+}
+
+/* ---------- Track geometry ---------- */
+function buildTrack(pts) {
+  const dense = [], n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    for (let s = 0; s < 40; s++) {
+      const t = s / 40, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      dense.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+    }
+  }
+  const cum = [0];
+  for (let i = 1; i <= dense.length; i++) { const a = dense[i - 1], b = dense[i % dense.length]; cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const L = cum[cum.length - 1], N = 900, out = [];
+  let j = 0;
+  for (let k = 0; k < N; k++) {
+    const target = k / N * L;
+    while (cum[j + 1] < target) j++;
+    const a = dense[j], b = dense[(j + 1) % dense.length], u = (target - cum[j]) / (cum[j + 1] - cum[j] || 1);
+    out.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]);
+  }
+  return out;
+}
+
+class TrackView {
+  constructor(canvas, track, ratio) { this.cv = canvas; this.ctx = canvas.getContext('2d'); this.norm = buildTrack(track.pts); this.ratio = ratio || 0.72; this.fit(); }
+  fit() {
+    const dpr = window.devicePixelRatio || 1, w = this.cv.clientWidth || 320, h = Math.round(w * this.ratio);
+    this.w = w; this.h = h; this.cv.width = w * dpr; this.cv.height = h * dpr; this.cv.style.height = h + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const m = Math.max(18, w * 0.05);
+    this.scr = this.norm.map(([x, y]) => [m + x * (w - 2 * m), m + y * (h - 2 * m)]);
+    const N = this.scr.length;
+    this.nrm = this.scr.map((p, i) => { const a = this.scr[(i - 1 + N) % N], b = this.scr[(i + 1) % N]; const tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1; return [-ty / l, tx / l]; });
+    // find which side is "inside"
+    const p = this.scr[0], nn = this.nrm[0], test = [p[0] + nn[0] * 20, p[1] + nn[1] * 20];
+    this.inSign = this.inside(test) ? 1 : -1;
+    this.tw = Math.max(12, w * 0.028);
+  }
+  inside([x, y]) { let c = false; const P = this.scr; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { if (((P[i][1] > y) !== (P[j][1] > y)) && (x < (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0])) c = !c; } return c; }
+  xy(f, lat) {
+    const N = this.scr.length; f = ((f % 1) + 1) % 1;
+    const k = f * N, i = Math.floor(k) % N, u = k - Math.floor(k), a = this.scr[i], b = this.scr[(i + 1) % N], n = this.nrm[i];
+    return [a[0] + (b[0] - a[0]) * u + n[0] * lat, a[1] + (b[1] - a[1]) * u + n[1] * lat];
+  }
+  drawTrack(wet) {
+    const c = this.ctx, P = this.scr;
+    c.fillStyle = '#0d1a13'; c.fillRect(0, 0, this.w, this.h);
+    const path = () => { c.beginPath(); c.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) c.lineTo(P[i][0], P[i][1]); c.closePath(); };
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    // pit lane
+    c.beginPath();
+    for (let f = -0.07; f <= 0.07; f += 0.005) { const [x, y] = this.xy(f, this.inSign * this.tw * 1.25); f === -0.07 ? c.moveTo(x, y) : c.lineTo(x, y); }
+    c.strokeStyle = '#3d434d'; c.lineWidth = this.tw * 0.45; c.stroke();
+    path(); c.strokeStyle = '#d9dde3'; c.lineWidth = this.tw + 4; c.stroke();
+    path(); const g = Math.round(58 - wet * 0.18), b = Math.round(66 + wet * 0.25);
+    c.strokeStyle = `rgb(${g - 2},${g + 2},${b})`; c.lineWidth = this.tw; c.stroke();
+    // start/finish line (checkered)
+    const n = this.nrm[0], p = this.scr[0], sq = this.tw / 4;
+    for (let r = -2; r < 2; r++) for (let s = 0; s < 2; s++) {
+      c.fillStyle = (r + s) % 2 === 0 ? '#fff' : '#111';
+      const x = p[0] + n[0] * (r + 0.5) * sq - n[1] * (s - 1) * sq, y = p[1] + n[1] * (r + 0.5) * sq + n[0] * (s - 1) * sq;
+      c.fillRect(x - sq / 2, y - sq / 2, sq, sq);
+    }
+  }
+  drawCar(x, y, col, num, player, alpha) {
+    const c = this.ctx, r = Math.max(7, this.w * 0.016);
+    c.globalAlpha = alpha;
+    if (player) { c.beginPath(); c.arc(x, y, r + 4, 0, 7); c.fillStyle = 'rgba(255,255,255,.25)'; c.fill(); }
+    c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = col; c.fill();
+    c.lineWidth = player ? 2.5 : 1.2; c.strokeStyle = player ? '#fff' : 'rgba(0,0,0,.7)'; c.stroke();
+    c.fillStyle = lum(col) > 0.55 ? '#000' : '#fff';
+    c.font = `900 ${Math.round(r * 1.15)}px 'Titillium Web',sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(num, x, y + 0.5);
+    c.globalAlpha = 1;
+  }
+  drawRain(intensity) {
+    if (intensity <= 0) return;
+    const c = this.ctx; c.strokeStyle = 'rgba(170,200,255,.35)'; c.lineWidth = 1;
+    c.beginPath();
+    for (let i = 0; i < intensity * 140; i++) { const x = rnd() * this.w, y = rnd() * this.h; c.moveTo(x, y); c.lineTo(x - 3, y + 10); }
+    c.stroke();
+    c.fillStyle = `rgba(20,40,70,${intensity * 0.18})`; c.fillRect(0, 0, this.w, this.h);
+  }
+}
+
+/* ---------- Briefing ---------- */
+function header() { return `<div class="mut" style="font-size:13px">ROUND ${G.round + 1} / ${TRACKS.length} · ${esc(G.player.team)}</div>`; }
+
+function screenBriefing() {
+  const t = TRACKS[G.round];
+  G.wx = genWeather(t);
+  const lvl = (v, a, b, A, B, C) => v < a ? A : v < b ? B : C;
+  const blocks = [];
+  for (let s = 0, bi = 1; s < t.laps; s += 4, bi++) blocks.push({ l: `Laps ${s + 1}–${Math.min(s + 4, t.laps)}`, p: forecastP(t, G.wx, s, s + 4, -4, bi) });
+  const qp = Math.round(clamp((G.wx.q > 0 ? 0.85 : 0.08) + G.wx.noise[0] * 0.08, 0.02, 0.98) * 10) * 10;
+  app.innerHTML = `${header()}<h1>${esc(t.name)}</h1><p class="sub">${esc(t.desc)}</p>
+  <div class="panel" style="padding:6px"><canvas id="mini"></canvas></div>
+  <div class="panel"><h3>Track facts</h3><div class="stats">
+    <div class="stat"><span>Laps</span><b>${t.laps}</b></div>
+    <div class="stat"><span>Tyre wear</span><b>${lvl(t.wear, 0.9, 1.15, '🟢 Low', '🟡 Medium', '🔴 High')}</b></div>
+    <div class="stat"><span>Overtaking</span><b>${lvl(t.ot, 0.4, 0.7, '🔴 Hard', '🟡 Medium', '🟢 Easy')}</b></div>
+    <div class="stat"><span>Pit stop costs</span><b>${t.pitLoss} s</b></div>
+    <div class="stat"><span>Rain risk</span><b>${lvl(t.rain, 0.25, 0.5, '☀️ Low', '⛅ Medium', '🌧️ High')}</b></div>
+  </div></div>
+  <div class="panel"><h3>Tyre guide for this track</h3>
+    <table class="wrap"><tr><th>Tyre</th><th>Speed</th><th>Lasts (Normal)</th><th>Lasts (Push)</th></tr>
+    ${['S', 'M', 'H'].map(k => { const w = COMP[k].wear * t.wear; return `<tr><td>${td(k)} ${COMP[k].n}</td><td>${k === 'S' ? 'fastest' : '+' + COMP[k].pace.toFixed(1) + ' s/lap'}</td><td>~${Math.floor(80 / w)} laps</td><td>~${Math.floor(80 / (w * 1.5))} laps</td></tr>`; }).join('')}
+    <tr><td>${td('W')} Rain</td><td colspan="3">Faster than slicks once the track is wetter than ~30%. In the dry: slow and worn out fast.</td></tr>
+    </table>
+    <p class="hint">Rule: in a dry race you must use <b>two different dry tyres</b> (or +20 s penalty). You start the race on your qualifying tyre.</p>
+  </div>
+  <div class="panel"><h3>Weather forecast</h3><div class="fc">
+    <div class="fcb"><small>Quali</small><b>${qp}%</b></div>
+    ${blocks.map(b => `<div class="fcb"><small>${b.l}</small><b>${b.p}%</b></div>`).join('')}
+  </div><p class="hint">Chance of rain. Forecasts far in the future are uncertain – they get better during the race.</p></div>
+  <button class="big" id="go">GO TO QUALIFYING</button>`;
+  const tv = new TrackView(document.getElementById('mini'), t, 0.55);
+  const draw = () => { tv.fit(); tv.drawTrack(0); };
+  draw();
+  window.onresize = draw;
+  document.getElementById('go').onclick = screenQuali;
+}
+
+/* ---------- Qualifying ---------- */
+function screenQuali() {
+  const t = TRACKS[G.round], wet = G.wx.q * 100;
+  const sel = [wet > 28 ? 'W' : 'S', wet > 28 ? 'W' : 'M'];
+  const pl = G.drivers.filter(d => d.player);
+  app.innerHTML = `${header()}<h1>Qualifying · ${esc(t.name)}</h1>
+  <div class="panel"><b>Track right now:</b> ${wet > 0 ? `🌧️ Wet (${Math.round(wet)}%)` : '☀️ Dry'}
+    <p class="hint">One flying lap each. Softer = faster lap. But remember: <b>you start the race on this tyre</b>.</p></div>
+  ${pl.map((d, i) => `<div class="panel qcard" style="border-left:6px solid ${d.col}">
+    <b>#${d.num} ${esc(d.name)}</b>
+    <div class="seg">${['S', 'M', 'H', 'W'].map(k => `<button class="tb ${sel[i] === k ? 'on' : ''}" data-i="${i}" data-k="${k}">${td(k)} ${COMP[k].n}</button>`).join('')}</div>
+  </div>`).join('')}
+  <button class="big" id="go">START QUALIFYING LAP</button>
+  <div id="qres"></div>`;
+  app.querySelectorAll('.qcard .tb').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i; sel[i] = b.dataset.k;
+    app.querySelectorAll(`.qcard .tb[data-i="${i}"]`).forEach(x => x.classList.toggle('on', x === b));
+  });
+  document.getElementById('go').onclick = () => {
+    const res = G.drivers.map(d => {
+      const tyre = d.player ? sel[d.pidx] : (wet > 28 ? 'W' : (rnd() < 0.7 ? 'S' : 'M'));
+      return { d, tyre, time: qualiTime(d, tyre, t, wet) };
+    }).sort((a, b) => a.time - b.time);
+    G.grid = res;
+    const best = res[0].time;
+    app.innerHTML = `${header()}<h1>Qualifying result</h1>
+    <div class="panel"><table><tr><th>Pos</th><th>Driver</th><th>Tyre</th><th>Time</th><th>Gap</th></tr>
+    ${res.map((r, i) => `<tr class="${r.d.player ? 'me' : ''}"><td>${i + 1}</td><td><span class="chip" style="background:${r.d.col}"></span>#${r.d.num} ${esc(r.d.name)}</td><td>${td(r.tyre, 1)}</td><td>${fmt(r.time)}</td><td>${i ? '+' + (r.time - best).toFixed(3) : ''}</td></tr>`).join('')}
+    </table></div><button class="big" id="go">START THE RACE</button>`;
+    document.getElementById('go').onclick = screenRace;
+  };
+}
+
+/* ---------- Race ---------- */
+let loopId = null, speed = 1, tv = null, uiTimer = 0;
+
+function screenRace() {
+  const t = TRACKS[G.round];
+  const grid = G.grid.map(r => Object.assign({}, r.d, { tyre: r.tyre }));
+  initRace(t, G.wx, grid);
+  speed = 1;
+  const pcs = R.cars.filter(c => c.player).sort((a, b) => a.pidx - b.pidx);
+  app.innerHTML = `
+  <div class="topbar"><div>${header()}<span class="lapc" id="lapc">Lap 1/${t.laps}</span> <span class="mut">${esc(t.name)}</span></div>
+    <div class="seg" id="spd">${[0, 1, 2, 4].map(s => `<button data-s="${s}" class="${s === 1 ? 'on' : ''}">${s ? s + '×' : '⏸'}</button>`).join('')}</div></div>
+  <div class="race-grid">
+    <div class="panel" id="cvp"><canvas id="cv"></canvas><div id="banner"><b>🏁 CHEQUERED FLAG</b><button class="big" id="tores" style="width:auto;padding:12px 28px">SEE RESULTS</button></div></div>
+    <div id="cards">${pcs.map(cardHTML).join('')}</div>
+    <div class="panel" id="wx"></div>
+    <div class="panel" id="tower"></div>
+    <div class="panel" id="log"></div>
+  </div>`;
+  tv = new TrackView(document.getElementById('cv'), t, 0.72);
+  window.onresize = () => tv.fit();
+  document.getElementById('spd').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    speed = +b.dataset.s; document.querySelectorAll('#spd button').forEach(x => x.classList.toggle('on', x === b));
+  };
+  document.getElementById('cards').onclick = e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const c = pcs[+b.dataset.d], v = b.dataset.v;
+    if (c.finished) return;
+    if (b.dataset.act === 'mode') c.mode = +v;
+    if (b.dataset.act === 'sel') { c.pitSel = v; if (c.pitReq) c.pitReq = v; }
+    if (b.dataset.act === 'box') c.pitReq = c.pitReq ? null : c.pitSel;
+    updateUI(pcs, true);
+  };
+  document.getElementById('tores').onclick = screenResults;
+  let last = performance.now();
+  cancelAnimationFrame(loopId);
+  const TS = t.base / 20; // 1× = ~20 s per lap
+  const frame = now => {
+    const rdt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (speed > 0 && !R.over) {
+      let simDt = rdt * TS * speed;
+      while (simDt > 0) { const d = Math.min(0.1, simDt); tick(d); simDt -= d; }
+    }
+    draw();
+    uiTimer += rdt;
+    if (uiTimer > 0.2) { uiTimer = 0; updateUI(pcs); }
+    if (R.over && !R.bannerShown) { R.bannerShown = true; setTimeout(() => { const b = document.getElementById('banner'); if (b) b.style.display = 'flex'; }, 800); }
+    loopId = requestAnimationFrame(frame);
+  };
+  updateUI(pcs, true);
+  loopId = requestAnimationFrame(frame);
+}
+
+function cardHTML(c, i) {
+  return `<div class="panel dcard" style="border-left-color:${c.col}">
+    <div class="crow"><span class="cpos" id="cpos${i}">P${c.grid}</span><span class="cname">#${c.num} ${esc(c.name)}</span><span id="cty${i}"></span></div>
+    <div class="wbar"><i id="cwb${i}"></i></div>
+    <div class="cinfo" id="cinfo${i}"></div>
+    <div class="seg">${MODES.map((m, k) => `<button data-act="mode" data-d="${i}" data-v="${k}" id="cm${i}_${k}">${m.n}</button>`).join('')}</div>
+    <div class="seg mt">${['S', 'M', 'H', 'W'].map(k => `<button class="tb" data-act="sel" data-d="${i}" data-v="${k}" id="cs${i}_${k}">${td(k)}</button>`).join('')}
+      <button class="box" data-act="box" data-d="${i}" id="cb${i}">BOX</button></div>
+    <div class="cwarn" id="cw${i}"></div>
+  </div>`;
+}
+
+function draw() {
+  if (!tv || !R) return;
+  tv.drawTrack(R.wet);
+  const t = R.t;
+  const cars = R.cars.slice().sort((a, b) => a.dist - b.dist);
+  for (const c of cars) {
+    let x, y;
+    if (c.pitTimer > 0) {
+      const prog = 1 - c.pitTimer / t.pitLoss;
+      [x, y] = tv.xy(-0.06 + prog * 0.12, tv.inSign * tv.tw * 1.25);
+    } else[x, y] = tv.xy(c.dist, c.lat);
+    tv.drawCar(x, y, c.col, c.num, c.player, c.finished ? 0.45 : 1);
+  }
+  tv.drawRain(R.rainNow);
+}
+
+function gapStr(c, ref) {
+  if (c.finished && ref.finished) return c === ref ? 'Winner' : (c.lapsDone < ref.lapsDone ? '+1 Lap' : '+' + (c.finishTime - ref.finishTime).toFixed(1));
+  return '+' + Math.max(0, (ref.dist - c.dist) * (R.t.base + 2)).toFixed(1);
+}
+
+function updateUI(pcs, force) {
+  const t = R.t, st = standings(), leader = st[0];
+  const lapNow = clamp(Math.floor(Math.max(0, leader.dist)) + 1, 1, t.laps);
+  document.getElementById('lapc').textContent = R.leaderDone ? 'FINISH' : `Lap ${lapNow}/${t.laps}`;
+  pcs.forEach((c, i) => {
+    const pos = st.indexOf(c);
+    document.getElementById('cpos' + i).textContent = 'P' + (pos + 1);
+    document.getElementById('cty' + i).innerHTML = `${td(c.tyre)} <b>${Math.round(c.cond * 100)}%</b>`;
+    const wb = document.getElementById('cwb' + i);
+    wb.style.width = Math.round(c.cond * 100) + '%';
+    wb.style.background = c.cond > 0.5 ? '#3c3' : c.cond > 0.2 ? '#fc3' : '#f33';
+    let info;
+    if (c.finished) info = `🏁 Finished${c.penalty ? ' (+20 s penalty)' : ''}`;
+    else if (c.pitTimer > 0) info = `🔧 In the pits… ${c.pitTimer.toFixed(0)} s`;
+    else if (c.spin > 0) info = '💫 Spun – recovering';
+    else {
+      const ahead = st[pos - 1], behind = st[pos + 1];
+      const g = (a, b) => ((a.dist - b.dist) * (t.base + 2)).toFixed(1);
+      info = `Last ${fmt(c.lastLap)}` + (ahead && !ahead.finished ? ` · ahead +${g(ahead, c)}s` : '') + (behind && !behind.finished && behind.pitTimer <= 0 ? ` · behind −${g(c, behind)}s` : '');
+    }
+    document.getElementById('cinfo' + i).textContent = info;
+    MODES.forEach((m, k) => document.getElementById(`cm${i}_${k}`).classList.toggle('on', c.mode === k));
+    ['S', 'M', 'H', 'W'].forEach(k => document.getElementById(`cs${i}_${k}`).classList.toggle('on', c.pitSel === k));
+    const bb = document.getElementById('cb' + i);
+    bb.classList.toggle('on', !!c.pitReq);
+    bb.textContent = c.pitReq ? 'BOXING ✕' : 'BOX';
+    let warn = '';
+    if (!c.finished && !ruleOK(c) && R.wet < 30) warn = '⚠️ Must still use a 2nd dry tyre type (or +20 s)';
+    if (c.pitReq) warn = `📻 Pits at the end of this lap for ${COMP[c.pitReq].n}` + (warn ? '<br>' + warn : '');
+    document.getElementById('cw' + i).innerHTML = warn;
+  });
+  // weather
+  const curLap = Math.floor(Math.max(0, leader.dist));
+  const blocks = [];
+  const start = curLap - (curLap % 4);
+  for (let s = start, k = 0; s < t.laps && k < 4; s += 4, k++) blocks.push({ l: `L${s + 1}–${Math.min(s + 4, t.laps)}`, p: forecastP(t, R.wx, Math.max(s, curLap), s + 4, curLap, 1 + s / 4) });
+  const rn = R.rainNow;
+  document.getElementById('wx').innerHTML = `<h3>Weather</h3>
+    <div><b>${rn > 0.55 ? '🌧️ Heavy rain' : rn > 0 ? '🌦️ Light rain' : R.wet > 0 ? '⛅ Dry, track still wet' : '☀️ Dry'}</b> · Track wetness <b>${Math.round(R.wet)}%</b></div>
+    <div class="wetbar"><i style="width:${R.wet}%"></i></div>
+    <div class="hint">Rain tyres are faster above ~30% wetness.</div>
+    <div class="fc mt">${blocks.map(b => `<div class="fcb"><small>${b.l}</small><b>${b.p}%</b></div>`).join('')}</div>`;
+  // tower
+  document.getElementById('tower').innerHTML = `<h3>Timing</h3><table>${st.map((c, i) => `<tr class="${c.player ? 'me' : ''}">
+    <td>${i + 1}</td><td><span class="chip" style="background:${c.col}"></span>${c.num} ${shortName(c.name)}</td>
+    <td>${c.pitTimer > 0 ? '<b>PIT</b>' : c.spin > 0 ? 'SPIN' : i ? gapStr(c, leader) : (c.finished ? '🏁' : 'Leader')}</td>
+    <td>${td(c.tyre, 1)} <span class="mut">${Math.round(c.cond * 100)}%</span></td></tr>`).join('')}</table>`;
+  document.getElementById('log').innerHTML = `<h3>Team radio</h3>` + (R.log.slice(0, 7).map(l => `<div>${esc(l.msg)}</div>`).join('') || '<div class="mut">Lights out and away we go! 🚦</div>');
+}
+
+/* ---------- Results & championship ---------- */
+function screenResults() {
+  cancelAnimationFrame(loopId); window.onresize = null;
+  const res = results(), w = res[0];
+  res.forEach((c, i) => { const p = POINTS[i] || 0; G.pts[c.id] += p; G.tpts[c.team] += p; c.got = p; });
+  const last = G.round >= TRACKS.length - 1;
+  app.innerHTML = `${header()}<h1>Race result · ${esc(R.t.name)}</h1>
+  <div class="panel"><table><tr><th>Pos</th><th>Driver</th><th>Time</th><th>Stops</th><th>Pts</th></tr>
+  ${res.map((c, i) => `<tr class="${c.player ? 'me' : ''}"><td>${i + 1}</td><td><span class="chip" style="background:${c.col}"></span>#${c.num} ${esc(c.name)}${c.grid !== i + 1 ? ` <span class="mut">(${c.grid > i + 1 ? '▲' : '▼'}${Math.abs(c.grid - i - 1)})</span>` : ''}</td>
+    <td>${i === 0 ? fmt(c.finishTime) : (c.lapsDone < w.lapsDone ? '+1 Lap' : '+' + (c.finishTime + c.penalty - w.finishTime).toFixed(1) + 's')}${c.penalty ? ' <span class="pill">+20s</span>' : ''}</td>
+    <td>${c.stops}</td><td>${c.got || ''}</td></tr>`).join('')}</table></div>
+  ${standingsHTML()}
+  <button class="big" id="go">${last ? 'FINAL STANDINGS' : 'NEXT RACE →'}</button>`;
+  document.getElementById('go').onclick = () => { if (last) screenFinal(); else { G.round++; screenBriefing(); } };
+}
+
+function standingsHTML() {
+  const ds = G.drivers.slice().sort((a, b) => G.pts[b.id] - G.pts[a.id]);
+  const ts = Object.keys(G.tpts).sort((a, b) => G.tpts[b] - G.tpts[a]);
+  const col = n => G.drivers.find(d => d.team === n).col;
+  return `<div class="panel"><h3>Drivers' championship</h3><table>${ds.map((d, i) => `<tr class="${d.player ? 'me' : ''}"><td>${i + 1}</td><td><span class="chip" style="background:${d.col}"></span>${esc(d.name)}</td><td>${G.pts[d.id]}</td></tr>`).join('')}</table></div>
+  <div class="panel"><h3>Teams' championship</h3><table>${ts.map((n, i) => `<tr class="${n === G.player.team ? 'me' : ''}"><td>${i + 1}</td><td><span class="chip" style="background:${col(n)}"></span>${esc(n)}</td><td>${G.tpts[n]}</td></tr>`).join('')}</table></div>`;
+}
+
+function screenFinal() {
+  const ds = G.drivers.slice().sort((a, b) => G.pts[b.id] - G.pts[a.id]);
+  const ts = Object.keys(G.tpts).sort((a, b) => G.tpts[b] - G.tpts[a]);
+  const myTeamPos = ts.indexOf(G.player.team) + 1;
+  app.innerHTML = `<h1>Season over!</h1>
+  <div class="panel"><div class="trophy">🏆</div>
+    <p style="text-align:center;font-size:18px">World Champion: <b>${esc(ds[0].name)}</b> (${esc(ds[0].team)})<br>
+    ${esc(G.player.team)} finished <b>P${myTeamPos}</b> in the teams' championship.</p></div>
+  ${standingsHTML()}
+  <div class="seg"><button class="big" id="again">NEW SEASON</button><button class="big" id="edit" style="background:#222935">EDIT TEAM</button></div>`;
+  document.getElementById('again').onclick = newSeason;
+  document.getElementById('edit').onclick = screenSetup;
+}
+
+screenSetup();
+</script>
+</body>
+</html>
