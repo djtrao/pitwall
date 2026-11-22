@@ -4,7 +4,7 @@
  *     In each stop 4 of them light up one after another in a random order – tap each as fast
  *     as you can. Tapping a dark spot = something got stuck. A broken wing / engine is always
  *     one of the 4 (it is being repaired).
- *  2. Release light: wait for GREEN, then tap GO. Tapping on red = unsafe release (penalty).
+ *  2. Release light: wait for GREEN, then tap GO (tapping on red does nothing – no penalty).
  * The reaction times are turned into an F1-style standing time (about 1.9 – 6 s).
  * If the player does not touch anything, the crew does an average stop.
  */
@@ -184,7 +184,7 @@ export function runPitGame(
   go.onpointerdown = (e) => {
     e.preventDefault();
     taps++;
-    if (phase === 'red') finish(0, true);
+    if (phase === 'red') hint.textContent = t('pitTooEarly');
     else if (phase === 'green') finish((performance.now() - greenAt) / 1000, false);
   };
 

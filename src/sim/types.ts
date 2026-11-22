@@ -22,7 +22,7 @@ export interface Track {
   name: string;
   desc: string;
   laps: number;
-  /** Base lap time in simulated seconds. */
+  /** Base lap time in simulated seconds (per-lap effects scale with base / 78). */
   base: number;
   wear: number;
   /** Overtaking factor, 0.2 (very hard) – 0.8 (easy). */
@@ -100,6 +100,10 @@ export interface Car extends CarSetup {
   pitTimer: number;
   /** Length of the current pit stop (s), for the pit lane animation. */
   pitTotal: number;
+  /** In the pit lane: driving in, standing in the box, driving out. */
+  pitPhase: 'in' | 'stop' | 'out' | null;
+  /** Lap for which the AI / pit entry decision was already made. */
+  decidedLap: number;
   /** Waiting for the pit stop game result. */
   pitAwait: boolean;
   /** Real seconds already waited for it. */
@@ -189,6 +193,7 @@ export type EventKind =
   | 'crash'
   | 'pitStopTime'
   | 'unsafeRelease'
+  | 'contactPenalty'
   | 'wingDamage'
   | 'engineDamage'
   | 'tyresWorn'

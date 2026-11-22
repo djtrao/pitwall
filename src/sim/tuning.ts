@@ -4,10 +4,15 @@
  * Defaults are the values from SPEC.md (sections 7.1 – 7.6), as tuned with the balance runner.
  */
 export const DEFAULT_TUNING = {
-  /** Real seconds per lap at 1× speed (section 7). */
-  realLapSeconds: 23,
+  /**
+   * Real seconds per unit of drawn track length at 1× speed: cars move across the screen at
+   * the same speed on every track; longer tracks simply take longer (about 32–36 s per lap).
+   */
+  realSecondsPerLength: 8.5,
+  /** Kept for the balance runner's race-length check (average lap). */
+  realLapSeconds: 34,
   /** Random lap-time noise (standard deviation, s), new each lap. */
-  noise: 0.3,
+  noise: 0.45,
 
   tyres: {
     S: { pace: 0, wear: 12 },
@@ -28,7 +33,7 @@ export const DEFAULT_TUNING = {
     { pace: 0.5, wear: 0.6, mistake: 0, bigShare: 0 },
     { pace: 0, wear: 1.0, mistake: 0.005, bigShare: 0 },
     { pace: -0.8, wear: 1.25, mistake: 0.03, bigShare: 0.1 },
-    { pace: -1.5, wear: 1.6, mistake: 0.08, bigShare: 0.25 },
+    { pace: -1.5, wear: 1.4, mistake: 0.08, bigShare: 0.25 },
   ],
 
   mistakes: {
@@ -52,9 +57,9 @@ export const DEFAULT_TUNING = {
 
   weather: {
     /** Everyone: seconds per % wetness. */
-    allPerWet: 0.04,
+    allPerWet: 0.03,
     slickFrom: 15,
-    slickPer: 0.075,
+    slickPer: 0.06,
     rainFrom: 35,
     rainPer: 0.11,
     rainBase: 0.8,
@@ -62,8 +67,8 @@ export const DEFAULT_TUNING = {
     rise: 40,
     dry: 10,
     dryWhileRaining: 20,
-    /** Chance per lap that a shower stops. */
-    stopChance: 0.18,
+    /** Chance per lap that a shower stops (laps are long: showers come and go). */
+    stopChance: 0.3,
   },
 
   duel: {
@@ -72,7 +77,7 @@ export const DEFAULT_TUNING = {
     /** A faster car can close up to this gap (s), then must win a duel. */
     minGap: 0.4,
     /** Share of a lap the attacker must stay close before a duel starts. */
-    closeLaps: 0.5,
+    closeLaps: 0.35,
     /** Real seconds a human has to choose. */
     answerSeconds: 6,
     /** Real seconds the duel animation runs before the result counts (only when a human chose). */
@@ -81,21 +86,24 @@ export const DEFAULT_TUNING = {
      * Levels: attack 0 = Wait, 1 Careful, 2 Bold, 3 Risky, 4 All or nothing.
      * Defend 0 = Let go, 1 Clean, 2 Hard, 3 Very hard, 4 Slam the door.
      */
-    attackPass: [0, 0.4, 0.55, 0.7, 0.2],
+    attackPass: [0, 0.45, 0.55, 0.68, 0.2],
     /** Taken off the pass chance by the defence level (All or nothing ignores it). */
     defendCut: [0, 0, 0.12, 0.24, 0.36],
     /** Crash chance added by each level. */
-    attackRisk: [0, 0, 0.03, 0.08, 0],
-    defendRisk: [0, 0, 0.02, 0.05, 0.1],
+    attackRisk: [0, 0, 0.04, 0.12, 0],
+    defendRisk: [0, 0, 0.03, 0.08, 0.14],
     /** Extra crash chance when both fight at level 3 or more. */
-    bothHard: 0.05,
+    bothHard: 0.06,
+    /** Time penalty for causing contact at level 3 or more (whoever chose the higher level). */
+    contactPenalty: 5,
     /** All or nothing: share of failures that are punished, split into spin / off (rest: contact). */
     allIn: { punish: 0.85, spin: 0.5, off: 0.3, maxPass: 0.4 },
     /** Extra pass chance per 0.3 s of pace advantage, capped. */
     paceBonusPer03: 0.1,
     paceBonusMax: 0.3,
     maxPass: 0.95,
-    failLoss: 0.3,
+    /** Time lost by a failed attack, per attack level (risky moves cost more). */
+    failLoss: [0, 0.2, 0.5, 0.9, 1.4],
     failWear: 0.02,
     crashLoss: 3,
     wingChance: 0.3,
@@ -126,6 +134,9 @@ export const DEFAULT_TUNING = {
   },
 
   pit: {
+    /** Pit lane: starts this share of a lap before the line, the box is at the line, exit after it. */
+    laneIn: 0.035,
+    laneOut: 0.045,
     /** Average time the car stands still (s, F1 scale) – already part of the track pit loss. */
     avgStop: 2.6,
     /** AI crews: spread of the standing time and chance of a fumbled stop. */
@@ -136,17 +147,19 @@ export const DEFAULT_TUNING = {
     maxHold: 3,
     /** Second car of a team waits behind the first. */
     doubleStack: 3,
-    unsafeReleasePenalty: 5,
   },
 
   safetyCar: {
-    /** Lap time under the safety car = base × slow. */
-    slow: 1.4,
-    minLaps: 2,
-    maxLaps: 4,
+    /** Lap time under the safety car = base × slow (a stop in the pit lane costs less then). */
+    slow: 1.8,
+    /** How long it stays out, in laps of track (random, not always ending at the line). */
+    minLaps: 0.6,
+    maxLaps: 1.6,
     wear: 0.3,
-    pitFactor: 0.5,
   },
+
+  /** Spreads the AI teams' pace (1 = the values in teams.ts). Bigger = the field splits into groups. */
+  aiPaceSpread: 1.6,
 
   /** Multiplies every track's pit stop time loss (1 = spec values). */
   pitLossScale: 1,

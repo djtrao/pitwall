@@ -124,7 +124,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       </div>
       <div class="r-cards" id="cards">${mine.map((c, i) => cardHTML(c, i)).join('')}</div>
       <div class="r-wxfull panel" id="wx"></div>
-      <div class="r-log panel" id="log"><h3>${t('radio')}</h3><div id="msgs"><div class="msg mine">${t('rLightsOut')}</div><div class="msg mine">${t('followHint')}</div></div></div>
+      <div class="r-log panel" id="log"><h3>${t('radio')}</h3><div id="msgs"><div class="msg mine">${t('rLightsOut')}</div><div class="msg mine">${t('followHint')}</div><div class="msg mine">${t('rRuleHint')}</div></div></div>
       <div class="r-rotate">${t('rotateHint')}</div>
     </div>`;
 
@@ -256,7 +256,9 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       active.playing = true;
       $('duel').innerHTML = '';
       const caption = { pass: t('outPass'), fail: t('outHeld'), crash: t('outCrash'), spin: t('outSpin'), off: t('outOff'), wait: t('outWait') }[d.outcome as 'pass'];
-      dv.play(d.outcome, caption ?? '', race.tuning.duel.showSeconds);
+      const aName = t(`att${d.attack ?? 0}` as StringKey);
+      const dName = t(`def${d.defend ?? 0}` as StringKey);
+      dv.play(d.outcome, caption ?? '', race.tuning.duel.showSeconds, t('duelChoices', { a: `${ATTACK_ICON[d.attack ?? 0]} ${aName}`, d: `${DEFEND_ICON[d.defend ?? 0]} ${dName}` }));
     }
     dv.draw();
     if (active.playing && dv.finished) closeDuel();
@@ -300,7 +302,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       esc(t('pitTitle', { car: `#${c.num} ${surname(c.name)}` })),
       race.tuning.pit.avgStop,
       (r) => {
-        src.command({ type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: r.unsafe });
+        src.command({ type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: false });
       },
       () => (pitPlaying = false),
       [...(c.wingDamage ? (['fw'] as const) : []), ...(c.engineDamage ? (['en'] as const) : [])],
@@ -332,7 +334,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     wb.style.background = c.cond > 0.5 ? '#3c3' : c.cond > 0.3 ? '#fc3' : '#f33';
     let info: string;
     if (c.status === 'finished') info = t('finished') + (c.penalty ? ` (${t('penalty')})` : '');
-    else if (c.status === 'pit') info = t('inPits', { s: Math.ceil(c.pitTimer / race.timeScale) });
+    else if (c.status === 'pit') info = c.pitPhase === 'stop' ? t('inPits', { s: Math.ceil(c.pitTimer / race.timeScale) }) : t('inPitLane');
     else if (c.loss > 0) info = t('losing');
     else {
       const ahead = st[pos - 1];
@@ -467,6 +469,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       case 'duelOff': return msg('rDuelOff', {}, carMine || otherMine);
       case 'pitStopTime': return carMine ? msg('rPitStop', { s: num(Number(e.data?.seconds)), rating: pitRating(Number(e.data?.seconds)) }) : null;
       case 'unsafeRelease': return carMine ? msg('rUnsafe', { s: e.data?.seconds ?? 5 }) : null;
+      case 'contactPenalty': return msg('rContact', { s: e.data?.seconds ?? 5 }, carMine || otherMine);
       case 'duelFail': return carMine || otherMine ? msg('rDuelFail', {}, carMine || otherMine) : null;
       case 'crash': return msg('rCrash', {}, carMine || otherMine);
       case 'wingDamage': return msg('rWing');

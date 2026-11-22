@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyCommand,
   duelPreview,
+  lapScale,
   duelMods,
   duelOutcomes,
   buildField,
@@ -74,14 +75,14 @@ describe('full races', () => {
       expect(res[0].car.status).toBe('finished');
       const minutes = race.realTime / 60;
       expect(minutes).toBeGreaterThan(5.9);
-      expect(minutes).toBeLessThan(8.3);
+      expect(minutes).toBeLessThan(8.6); // until the last car is home
     }
   });
   it('AI cars follow the two-compound rule in dry races', () => {
     let penalties = 0;
     for (let s = 1; s <= 20; s++) {
       const race = simulate(createRace({ ...cfgFrom(fullRace(s)), weather: dryWeather(RHEIN.laps) }));
-      penalties += race.cars.filter((c) => c.penalty > 0).length;
+      penalties += race.events.filter((e) => e.kind === 'penalty').length; // two-compound rule only
     }
     expect(penalties).toBe(0);
   });
@@ -100,9 +101,10 @@ describe('modes and mistakes (7.3)', () => {
       return r.cars[0].lapTime;
     });
     const m = RHEIN_TUNING.modes;
-    expect(times[0] - times[1]).toBeCloseTo(m[0].pace);
-    expect(times[2] - times[1]).toBeCloseTo(m[2].pace);
-    expect(times[3] - times[1]).toBeCloseTo(m[3].pace);
+    const k = lapScale(RHEIN);
+    expect(times[0] - times[1]).toBeCloseTo(m[0].pace * k);
+    expect(times[2] - times[1]).toBeCloseTo(m[2].pace * k);
+    expect(times[3] - times[1]).toBeCloseTo(m[3].pace * k);
     expect(times[3]).toBeLessThan(times[2]);
     expect(times[2]).toBeLessThan(times[1]);
     expect(times[1]).toBeLessThan(times[0]);
@@ -145,9 +147,27 @@ describe('pit stops', () => {
     expect(cb.usedTyres).toEqual(['S', 'M']);
     expect(cb.tyre).toBe('M');
     expect(cb.stops).toBe(1);
-    // lap 1 of b ends in the pits: lap 2 is pit loss slower (minus fresher tyres, plus slower Medium)
-    expect(b.time - a.time).toBeGreaterThan(RHEIN.pitLoss - 1);
-    expect(b.time - a.time).toBeLessThan(RHEIN.pitLoss + 1);
+    // b drove through the pit lane at the end of lap 1: about the pit loss slower
+    expect(b.time - a.time).toBeGreaterThan(RHEIN.pitLoss - 2);
+    expect(b.time - a.time).toBeLessThan(RHEIN.pitLoss + 2);
+  });
+  it('the car drives into the pit lane before the line, stops at the line and drives out slowly', () => {
+    const r = soloRace();
+    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+    const c = r.cars[0];
+    while (c.status !== 'pit') step(r);
+    expect(c.pitPhase).toBe('in');
+    expect(c.dist).toBeLessThan(1);
+    expect(c.dist).toBeGreaterThan(1 - RHEIN_TUNING.pit.laneIn - 0.01);
+    step(r);
+    expect(c.speed).toBeLessThan(0.6 / c.lapTime); // speed limit in the pit lane
+    while (c.pitPhase === 'in') step(r);
+    expect(c.pitPhase).toBe('stop');
+    expect(c.dist).toBe(1);
+    while (c.pitPhase === 'stop') step(r);
+    expect(c.tyre).toBe('M');
+    while (c.status === 'pit') step(r);
+    expect(c.dist).toBeGreaterThanOrEqual(1 + RHEIN_TUNING.pit.laneOut);
   });
   it('a BOX call can be cancelled', () => {
     const r = soloRace();
@@ -165,25 +185,32 @@ describe('pit stops', () => {
 });
 
 describe('safety car (7.6)', () => {
-  it('comes out on the given lap, slows the field and ends at the line', () => {
+  it('comes out on the given lap, slows the field and goes in after the given distance', () => {
     const r = soloRace({ safetyCar: { lap: 4, laps: 3, at: 0.5 } });
     const c = runTo(r, 4);
     expect(r.safetyCar.active).toBe(true);
     expect(r.events.some((e) => e.kind === 'safetyCar')).toBe(true);
     expect(r.events.some((e) => e.kind === 'boxNow')).toBe(true);
     step(r);
-    expect(c.speed).toBeCloseTo(1 / (RHEIN.base * 1.4), 5);
-    runTo(r, 6); // in at the end of lap 6
+    expect(c.speed).toBeCloseTo(1 / (RHEIN.base * RHEIN_TUNING.safetyCar.slow), 5);
+    while (c.dist < 3.5 + 3 + 0.01) step(r); // out at 3.5 laps, for 3 laps
     step(r);
     expect(r.safetyCar.active).toBe(false);
   });
-  it('a stop under the safety car costs only part of the pit loss', () => {
-    const r = soloRace({ safetyCar: { lap: 4, laps: 3, at: 0.2 } });
-    runTo(r, 4);
-    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
-    runTo(r, 5);
-    const pitIn = r.events.find((e) => e.kind === 'pitIn')!;
-    expect(pitIn.data!.loss).toBeCloseTo(RHEIN.pitLoss * RHEIN_TUNING.safetyCar.pitFactor, 1);
+  it('a stop under the safety car loses clearly less time (the others drive slowly)', () => {
+    const lossWith = (sc: { lap: number; laps: number; at: number } | null) => {
+      const tm = (pit: boolean) => {
+        const r = soloRace({ safetyCar: sc });
+        if (pit) applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+        runTo(r, 3);
+        return r.time;
+      };
+      return tm(true) - tm(false);
+    };
+    // the stop happens at the end of lap 1; the safety car is out from lap 1 for 1.5 laps
+    const normal = lossWith(null);
+    const underSc = lossWith({ lap: 1, laps: 1.5, at: 0.5 });
+    expect(underSc).toBeLessThan(normal - 4);
   });
   it('bunches the field up to about 0.4 s apart', () => {
     const race = fullRace(4);
@@ -221,10 +248,10 @@ describe('damage', () => {
     const base = r.cars[0].lapTime;
     r.cars[0].engineDamage = true;
     step(r);
-    expect(r.cars[0].lapTime - base).toBeCloseTo(RHEIN_TUNING.damage.enginePace, 2);
+    expect(r.cars[0].lapTime - base).toBeCloseTo(RHEIN_TUNING.damage.enginePace * lapScale(RHEIN), 2);
     r.cars[0].wingDamage = true;
     step(r);
-    expect(r.cars[0].lapTime - base).toBeCloseTo(RHEIN_TUNING.damage.enginePace + RHEIN_TUNING.duel.wingPace, 2);
+    expect(r.cars[0].lapTime - base).toBeCloseTo((RHEIN_TUNING.damage.enginePace + RHEIN_TUNING.duel.wingPace) * lapScale(RHEIN), 2);
   });
   it('a broken wing makes every duel move riskier and less likely to work', () => {
     const ok = humanCar('a-1');
@@ -245,7 +272,8 @@ describe('damage', () => {
     c.engineDamage = true;
     applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
     while (c.status !== 'pit') step(r);
-    expect(c.pitTimer).toBeGreaterThan(RHEIN.pitLoss + RHEIN_TUNING.duel.wingPitExtra + RHEIN_TUNING.damage.enginePitExtra - 1);
+    // standing time = average stop + both repairs
+    expect(c.pitTotal).toBeGreaterThan(RHEIN_TUNING.pit.avgStop + RHEIN_TUNING.duel.wingPitExtra + RHEIN_TUNING.damage.enginePitExtra - 1);
     while (c.status === 'pit') step(r);
     expect(c.wingDamage).toBe(false);
     expect(c.engineDamage).toBe(false);
@@ -280,12 +308,12 @@ describe('pit stop game', () => {
     }
     expect(c.status).toBe('running');
   });
-  it('an unsafe release costs a time penalty', () => {
+  it('there is no time penalty from the pit stop game', () => {
     const r = soloRace({}, { pitGame: true });
     applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
     while (r.cars[0].status !== 'pit') step(r);
     applyCommand(r, { type: 'pitStop', car: 'me-1', seconds: 2.2, unsafe: true });
-    expect(r.cars[0].penalty).toBe(RHEIN_TUNING.pit.unsafeReleasePenalty);
+    expect(r.cars[0].penalty).toBe(0);
   });
 });
 

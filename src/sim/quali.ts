@@ -3,7 +3,7 @@
  * zone widths, corner results, lap times, AI laps and the grid.
  * The timing tap itself happens on the phone; only the zone that was hit is used here.
  */
-import { weatherPenalty } from './model';
+import { lapScale, weatherPenalty } from './model';
 import { clamp, gauss, makeRng, rand, range, type Rng } from './rng';
 import type { Tuning } from './tuning';
 import type { CarSetup, Track, Tyre, Weather } from './types';
@@ -104,9 +104,8 @@ export function cornerResult(risk: CornerRisk, hit: CornerHit, roll: number): Co
 
 /** Lap time without the corner results: car, driver, tyre, wetness (and used tyres). */
 export function baseHotLap(car: CarSetup, tyre: Tyre, wetness: number, track: Track, tuning: Tuning, usedTyre: boolean): number {
-  return (
-    track.base + car.carPace + car.driverPace + tuning.tyres[tyre].pace + weatherPenalty(tyre, wetness, tuning) + (usedTyre ? QUALI.usedTyre : 0)
-  );
+  const d = car.carPace + car.driverPace + tuning.tyres[tyre].pace + weatherPenalty(tyre, wetness, tuning) + (usedTyre ? QUALI.usedTyre : 0);
+  return track.base + d * lapScale(track);
 }
 
 /** Full lap time, or null if deleted. */

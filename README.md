@@ -18,6 +18,12 @@ A Formula 1 team-manager game for phones (1–4 players). See [SPEC.md](SPEC.md)
 | 6 | Multiplayer (lobby, server, reconnecting) | ✅ done – server setup: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) |
 | 7 | Polish: PWA install, sounds, final balancing | next |
 
+## Spielanleitung (für die Kinder)
+
+- [Qualifying](docs/anleitung/Anleitung-1-Qualifying.png)
+- [Zweikampf](docs/anleitung/Anleitung-2-Zweikampf.png)
+- [Boxenstopp](docs/anleitung/Anleitung-3-Boxenstopp.png)
+
 ## Project layout
 
 ```

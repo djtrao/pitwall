@@ -24,7 +24,7 @@ Build "Pit Wall", a Formula 1 team-manager game for phones. 1 to 4 players each 
 
 - **Team setup:** each player names their team, picks a team colour, and names two drivers with car numbers (2 to 99, unique on the grid). Remember this on the phone.
 - **Grid:** always 12 cars = 6 teams with 2 drivers each. Human teams first, AI teams fill the rest. Each player controls both of their drivers.
-- **Fairness:** all human teams have exactly the same car speed. AI teams range from 0.0 to 0.6 s per lap slower or faster around the human level (one AI team clearly faster, one clearly slower). Use fictional team and driver names only.
+- **Fairness:** all human teams have exactly the same car speed. AI teams range up to about 0.9 s per (78 s) lap slower or faster than the human level, so the field splits into groups during a race (one or two clearly faster teams, one clearly slower). **AI teams use the real current F1 teams, drivers, car numbers and (approximate) team colours** (decided after milestone 6); their speed follows the current championship standings (team pace) and teammate comparison (driver skill). Each race / season picks 5 of the 11 teams at random.
 - **Season:** the host picks 3, 5 or 8 races. Each round: Track briefing → Hot Lap qualifying → Race → Results and championship standings.
 - **Points:** 25, 18, 15, 12, 10, 8, 6, 4, 2, 1 for places 1 to 10. Drivers' and teams' championships.
 
@@ -34,12 +34,12 @@ Create 8 fictional tracks, each with its own drawn shape (closed spline, start/f
 
 | Value | Range | What it changes |
 | --- | --- | --- |
-| Laps | 15 to 20 | race length |
-| Base lap time | 70 to 90 s | simulation time |
+| Laps | 11 to 12 | race length (long, winding tracks: a lap takes about 32–36 s at 1×) |
+| Base lap time | 110 to 125 s | simulation time (per-lap effects are defined for a 78 s lap and scale with it) |
 | Tyre wear factor | 0.8 to 1.3 | how fast tyres wear |
 | Overtaking factor | 0.2 (very hard) to 0.8 (easy) | duel success chances |
 | Pit stop time loss | 18 to 25 s | cost of a pit stop (pit lane + an average 2.6 s standing time) |
-| Rain chance | 0.1 to 0.6 | chance of rain during the event |
+| Rain chance | 0.2 to 0.75 | chance of rain during the event (showers come and go) |
 | Safety car chance | 0.2 to 0.6 | chance of a safety car per race |
 | 3 key corners | names + position on the lap | used in Hot Lap qualifying |
 
@@ -88,7 +88,7 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** o
 
 ## 7. Race model
 
-The race runs in real time. At 1× speed one lap takes about 23 seconds, so a race lasts 6 to 8 minutes. Each car's current lap time is:
+The race runs in real time. Cars move across the screen at the same speed on every track; the tracks are long and winding, so one lap takes about 32–36 seconds at 1× and a race (11–12 laps) lasts 6 to 8 minutes. Each car's current lap time is:
 
 ```
 T = T_base + car + driver + tyre + wear + mode + weather + noise
@@ -135,7 +135,7 @@ Keep the prototype model:
 - The rain timeline is generated per lap before the event, with persistence (rain lasts several laps) and an intensity from light (0.25) to heavy (1.0).
 - **Track wetness** (0 to 100%) rises while it rains (up to intensity × 100) and dries slowly after.
 - All cars are slower when wet: +0.04 s per % wetness.
-- **Slicks** lose (wetness − 15) × 0.075 s when wetness is over 15%. **Rain tyres** lose (35 − wetness) × 0.11 + 0.8 s. The crossover is around 31% wetness: show that number in the UI.
+- **Slicks** lose (wetness − 15) × 0.06 s when wetness is over 15%. **Rain tyres** lose (35 − wetness) × 0.11 + 0.8 s. The crossover is around 33% wetness: show that number in the UI.
 - The forecast shows a chance of rain per block of 4 laps. The further ahead, the fuzzier it is. It gets more accurate as the race goes on.
 
 ### 7.5 Overtaking duels
@@ -153,7 +153,7 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 | 3 | Risky | Very hard |
 | 4 | All or nothing! | Slam the door! |
 
-- **Rules:** a higher attack level passes more often, a harder defence lets fewer cars through, and the harder both fight, the higher the crash risk. Base pass chance for attack levels 1–3: 40 / 55 / 70 %, minus 0 / 12 / 24 / 36 % for defence levels 1–4. Crash chance: attack 0 / 3 / 8 %, plus defence 0 / 2 / 5 / 10 %, plus 5 % if both fight at level 3 or more.
+- **Rules:** a higher attack level passes more often, a harder defence lets fewer cars through, and the harder both fight, the higher the crash risk. Base pass chance for attack levels 1–3: 45 / 55 / 68 %, minus 0 / 12 / 24 / 36 % for defence levels 1–4. Crash chance: attack 0 / 4 / 12 %, plus defence 0 / 3 / 8 / 14 %, plus 6 % if both fight at level 3 or more. A failed attack costs 0.2 / 0.5 / 0.9 / 1.4 s (more risk, more loss). **Contact penalty:** in a crash, the driver who chose the higher level caused it and gets +5 s if that level was 3 or 4 (Risky / All or nothing / Very hard / Slam the door). After the animation both choices are shown ("Risky vs Hard").
 - **All or nothing** is a last-ditch effort: about 20 % success whatever the defender does, and a failure is almost always punished (85 %): a spin (−6 s), going off with a flat spot (−5 s), or contact (both −3 s, 60 % front wing damage).
 - The pass chance is multiplied by the track's overtaking factor (0.5 = ×1.0) and gets +10 % per 0.3 s of pace advantage (at most +30 %).
 - **Animation:** after both have chosen (or the 6 s are over), a ~3 s animation shows how it pans out. Three scenes, chosen by where the duel happens: a straight, a corner and a chicane. Each scene always starts the same way and then shows the ending: passed, defended, contact, spin, off the track, or waiting. The result counts in the race only after the animation (so the timing tower does not give it away).
@@ -167,7 +167,7 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 
 ### 7.5b Pit stop game
 
-- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car with **8 spots** (4 wheels, front jack, rear jack, front wing, engine). In each stop **4 of them** light up one after another in a random order – tap each as fast as possible; tapping a dark spot means something got stuck. A broken wing or engine is always one of the 4. Then the release light: wait for green, then tap GO. Tapping on red is an unsafe release: +5 s penalty.
+- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car with **8 spots** (4 wheels, front jack, rear jack, front wing, engine). In each stop **4 of them** light up one after another in a random order – tap each as fast as possible; tapping a dark spot means something got stuck. A broken wing or engine is always one of the 4. Then the release light: wait for green, then tap GO (tapping on red does nothing). **No penalties** – a good stop simply gets the car out sooner, a bad one later.
 - The reaction times are turned into an F1-style standing time (about 1.9 s to 6 s) and shown with a rating: great (≤ 2.2 s), good (≤ 2.8 s), a bit slow (≤ 3.6 s), slow. The difference to the average 2.6 s changes the stop.
 - If the player does not touch anything, the crew does an average stop (no penalty). AI crews vary a little and sometimes fumble (+2 s). The second car of a team that stops at the same time waits behind the first (+3 s).
 - The game runs on the phone; only the result is sent to the server (like the Hot Lap timing). In single player at 4× the race slows to 2× while the game runs.
@@ -176,8 +176,8 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 ### 7.6 Safety car
 
 - Chance per race comes from the track (0.2 to 0.6). It can start anywhere between lap 2 and two laps before the end. A crash in a duel also has a 25% chance to bring it out.
-- It lasts 2 to 4 laps. All cars bunch up behind the leader about 0.4 s apart, drive slowly, and cannot overtake. Tyre wear ×0.3.
-- **A pit stop under the safety car costs only half the normal time loss.** Show a big "SAFETY CAR" banner and a radio message: "Safety car! Box now?"
+- It stays out for a **random distance of 0.6 to 1.6 laps** and can come in anywhere on the lap – nobody knows when, so pitting is a real gamble. All cars bunch up behind the leader about 0.4 s apart, drive slowly (lap time ×1.8) and cannot overtake. Tyre wear ×0.3.
+- **Pit lane:** a stopping car turns into the pit lane shortly before the line, drives to its box at the speed limit, stands still (about 2.6 s, from the pit stop game), and drives out at the speed limit; pit lane time + standing time = the track's pit loss (18–25 s). Under the safety car the others drive slowly, so a stop costs clearly less (about 6 s gain), but only if the safety car is still out. Show a big "SAFETY CAR" banner and a radio message: "Safety car! Box now?"
 - On the restart, duels are possible again straight away.
 
 ### 7.7 AI teams
@@ -214,8 +214,8 @@ Tune the numbers with the headless balance runner until these hold. Report the s
 - Dry race: one stop is usually the best plan (pit stops are expensive); two stops only pay off with a safety car, mistakes or very worn tyres (decided after milestone 2).
 - Max Attack for a whole stint usually loses time (wear and mistakes). Short bursts of 1 to 3 laps (undercut, attacking on fresh tyres) usually gain.
 - Good use of Push over a race gains 5 to 8 s compared with Normal.
-- A good rain call (switching within one lap of the crossover) beats a late one (3 laps late) by 10 to 15 s.
-- A pit stop under the safety car gains clearly compared with a normal stop (about 8–10 s).
+- A good rain call (switching within one lap of the crossover) beats a late one (2 of the long laps late) by 10 to 20 s.
+- A pit stop under the safety car gains clearly compared with a normal stop (about 5–10 s alone), but it is no sure thing because nobody knows when the safety car comes in.
 - A perfect Hot Lap is about 1.5 s faster than an all-Safe lap, which is worth several grid places.
 - A well-played human team can win about 1 race in 3. A badly played team finishes midfield or lower.
 
@@ -225,7 +225,7 @@ Tune the numbers with the headless balance runner until these hold. Report the s
 - Fuel: no refuelling (banned in F1) and no fuel management.
 - Boost / ERS button (maybe later).
 - Money, sponsors, staff, contracts, driver training.
-- Real team names, driver names, logos or real track names.
+- Logos or real track names (real team and driver names are used for the AI, see section 3).
 
 ## 12. Build order
 
