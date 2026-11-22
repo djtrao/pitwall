@@ -110,7 +110,7 @@ describe('setup helpers', () => {
     for (const n of [2, 3, 4, 5]) {
       const teams = pickAiTeams(n);
       expect(teams).toHaveLength(n);
-      expect(Math.min(...teams.map((t) => t.pace))).toBeLessThanOrEqual(-0.4);
+      expect(Math.min(...teams.map((t) => t.pace))).toBeLessThanOrEqual(-0.25);
       expect(Math.max(...teams.map((t) => t.pace))).toBeGreaterThanOrEqual(0.4);
       for (const t of teams) expect(Math.abs(t.pace)).toBeLessThanOrEqual(0.6);
     }

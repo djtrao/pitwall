@@ -1,5 +1,5 @@
 import { chance, rand } from './rng';
-import { fuelMargin, stintCost, tyreRuleOk, wearPerLap } from './model';
+import { stintCost, tyreRuleOk, wearPerLap } from './model';
 import type { Car, DuelAttack, DuelDefend, Mode, RaceState, Tyre } from './types';
 import { CONSERVE, DRY_TYRES, MAX_ATTACK, NORMAL, PUSH } from './types';
 
@@ -76,27 +76,30 @@ export function aiOnLap(race: RaceState, c: Car, done: number): void {
     }
   } else if (left === 1 && !tyreRuleOk(c.usedTyres) && c.tyre !== 'W') {
     // a last-lap stop only makes sense if it costs less than the penalty
-    if (track.pitLoss < t.rules.twoCompoundPenalty) c.pitPlan = pickDryTyre(race, c, left);
+    if (track.pitLoss * t.pitLossScale < t.rules.twoCompoundPenalty) c.pitPlan = pickDryTyre(race, c, left);
   }
 
   // ---------- driving mode ----------
+  // Fuel budget: spare laps of fuel at Normal pace. Push costs 0.15 laps per lap more.
+  const spare = c.fuel - left * t.modes[NORMAL].fuel;
+  const extra = (m: Mode) => t.modes[m].fuel - t.modes[NORMAL].fuel;
+  const endLaps = Math.min(3, left);
+  const reserveForEnd = endLaps * extra(PUSH);
   let mode: Mode = NORMAL;
   const { ahead, behind } = gapAheadBehind(race, c);
-  const fuelPerLapAt = (m: Mode) => t.modes[m].fuel;
-  const canAfford = (m: Mode, laps: number) => c.fuel - (left - laps) * fuelPerLapAt(NORMAL) - laps * fuelPerLapAt(m) >= 0.1;
-  if (left <= 3 && canAfford(PUSH, left)) mode = PUSH;
-  if ((ahead < 1.0 || behind < 1.0) && canAfford(PUSH, Math.min(left, 2))) mode = PUSH;
-  if (c.tyreLaps === 0 && c.stops > 0 && c.ai.aggression > 0.75 && canAfford(MAX_ATTACK, 1)) mode = MAX_ATTACK;
-  if (left === 1 && c.ai.aggression > 0.85 && canAfford(MAX_ATTACK, 1)) mode = MAX_ATTACK;
-  // tyres nearly dead and far from the finish: look after them
-  if (c.cond < t.cliffAt + 0.1 && left > 2 && !c.pitPlan) mode = Math.min(mode, NORMAL) as Mode;
-  if (sc) mode = NORMAL;
-  c.mode = mode;
-  // fuel saving
-  if (fuelMargin(c, track, t) < 0) {
-    c.mode = NORMAL;
-    if (fuelMargin(c, track, t) < 0) c.mode = CONSERVE;
+  if (left <= 3 && spare >= left * extra(PUSH) + 0.05) mode = PUSH;
+  else if ((ahead < 1.0 || behind < 0.8) && spare - extra(PUSH) >= reserveForEnd + 0.05) mode = PUSH;
+  if (mode !== NORMAL || left <= 3) {
+    // rare Max Attack: out-lap on fresh tyres for aggressive drivers, or the last lap
+    const maxOk = spare - extra(MAX_ATTACK) >= (left - 1 <= 3 ? (left - 1) * extra(PUSH) : reserveForEnd) + 0.05;
+    if (maxOk && ((c.tyreLaps === 0 && c.stops > 0 && c.ai.aggression > 0.8) || (left === 1 && c.ai.aggression > 0.6))) mode = MAX_ATTACK;
   }
+  // tyres nearly dead and far from the finish: look after them
+  if (c.cond < t.cliffAt + 0.1 && left > 2 && !c.pitPlan && mode > NORMAL) mode = NORMAL;
+  if (sc) mode = NORMAL;
+  // fuel saving: only as much as needed (late, a safety car may still help)
+  if (spare < 0 && c.fuel - t.modes[NORMAL].fuel - (left - 1) * t.modes[CONSERVE].fuel < 0.1) mode = CONSERVE;
+  c.mode = mode;
 }
 
 /** Duel choices for AI (and humans who did not answer in time / use auto duels). */

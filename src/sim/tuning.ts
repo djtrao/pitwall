@@ -111,6 +111,9 @@ export const DEFAULT_TUNING = {
     pitFactor: 0.5,
   },
 
+  /** Multiplies every track's pit stop time loss (1 = spec values). */
+  pitLossScale: 1,
+
   rules: {
     twoCompoundPenalty: 20,
   },

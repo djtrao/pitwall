@@ -276,7 +276,7 @@ export function step(race: RaceState, realDt = 0.1): void {
       c.status = 'pit';
       c.pitTyre = c.pitPlan;
       c.pitPlan = null;
-      c.pitTimer = track.pitLoss * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0);
+      c.pitTimer = track.pitLoss * t.pitLossScale * (sc.active ? t.safetyCar.pitFactor : 1) + (c.wingDamage ? t.duel.wingPitExtra : 0);
       c.stops++;
       c.closeTime = 0;
       c.closeTo = null;

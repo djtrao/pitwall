@@ -8,11 +8,11 @@ export interface AiTeam {
 }
 
 export const AI_TEAMS: AiTeam[] = [
-  { id: 'nordlicht', name: 'Nordlicht Racing', color: '#2b4bff', pace: -0.5, drivers: [{ name: 'Finn Halvorsen', num: 3 }, { name: 'Mika Strand', num: 21 }] },
-  { id: 'vulcan', name: 'Vulcan Motorsport', color: '#e10600', pace: -0.2, drivers: [{ name: 'Rafa Ortega', num: 9 }, { name: 'Theo Brandt', num: 30 }] },
-  { id: 'comet', name: 'Comet GP', color: '#00d2be', pace: 0.05, drivers: [{ name: 'Kenta Mori', num: 12 }, { name: 'Lucas Ferreira', num: 26 }] },
+  { id: 'nordlicht', name: 'Nordlicht Racing', color: '#2b4bff', pace: -0.3, drivers: [{ name: 'Finn Halvorsen', num: 3 }, { name: 'Mika Strand', num: 21 }] },
+  { id: 'vulcan', name: 'Vulcan Motorsport', color: '#e10600', pace: -0.12, drivers: [{ name: 'Rafa Ortega', num: 9 }, { name: 'Theo Brandt', num: 30 }] },
+  { id: 'comet', name: 'Comet GP', color: '#00d2be', pace: 0.08, drivers: [{ name: 'Kenta Mori', num: 12 }, { name: 'Lucas Ferreira', num: 26 }] },
   { id: 'bluewave', name: 'Blue Wave', color: '#ff8700', pace: 0.25, drivers: [{ name: 'Noah Clement', num: 8 }, { name: 'Ivan Petrov', num: 47 }] },
-  { id: 'desertfox', name: 'Desert Fox', color: '#2ecc40', pace: 0.55, drivers: [{ name: 'Omar Haddad', num: 6 }, { name: 'Sam Kowalski', num: 72 }] },
+  { id: 'desertfox', name: 'Desert Fox', color: '#2ecc40', pace: 0.5, drivers: [{ name: 'Omar Haddad', num: 6 }, { name: 'Sam Kowalski', num: 72 }] },
 ];
 
 /**
