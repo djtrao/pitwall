@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   crossoverWetness,
   DEFAULT_TUNING as T,
-  duelOdds,
+  duelOutcomes,
   gauss,
   lapsToCliff,
   makeRng,
@@ -93,19 +93,41 @@ describe('weather (7.4)', () => {
   });
 });
 
-describe('duel odds (7.5)', () => {
-  it('match the table on an average track with equal pace', () => {
-    expect(duelOdds(T, 0.5, 'inside', 'coverInside', 0).pass).toBeCloseTo(0.2);
-    expect(duelOdds(T, 0.5, 'inside', 'coverOutside', 0).pass).toBeCloseTo(0.7);
-    expect(duelOdds(T, 0.5, 'outside', 'coverInside', 0)).toEqual({ pass: 0.6, crash: 0.1 });
-    expect(duelOdds(T, 0.5, 'outside', 'coverOutside', 0).crash).toBeCloseTo(0.15);
-    expect(duelOdds(T, 0.5, 'inside', 'letGo', 0).pass).toBe(1);
-    expect(duelOdds(T, 0.5, 'wait', 'coverInside', 0).pass).toBe(0);
+describe('duel outcomes (7.5, risk levels)', () => {
+  const sum = (o: Record<string, number>) => Object.values(o).reduce((x, y) => x + y, 0);
+  it('all outcome chances add up to 1 for every pair of levels', () => {
+    for (const a of [0, 1, 2, 3, 4] as const) for (const d of [0, 1, 2, 3, 4] as const) {
+      for (const adv of [-1, 0, 0.6, 2]) expect(sum(duelOutcomes(T, 0.5, a, d, adv))).toBeCloseTo(1, 6);
+    }
   });
-  it('scale with the overtaking factor and pace advantage', () => {
-    expect(duelOdds(T, 0.25, 'inside', 'coverInside', 0).pass).toBeCloseTo(0.1);
-    expect(duelOdds(T, 0.5, 'inside', 'coverInside', 0.6).pass).toBeCloseTo(0.4);
-    expect(duelOdds(T, 0.8, 'inside', 'coverOutside', 3).pass).toBeCloseTo(0.95); // capped
+  it('Wait never attacks, Let go always lets the attacker past', () => {
+    expect(duelOutcomes(T, 0.5, 0, 3, 0).wait).toBe(1);
+    expect(duelOutcomes(T, 0.5, 2, 0, 0).pass).toBe(1);
+  });
+  it('a higher attack level passes more often, a harder defence lets fewer through', () => {
+    const p = (a: 1 | 2 | 3, d: 1 | 2 | 3 | 4) => duelOutcomes(T, 0.5, a, d, 0).pass;
+    expect(p(2, 2)).toBeGreaterThan(p(1, 2));
+    expect(p(3, 2)).toBeGreaterThan(p(2, 2));
+    expect(p(2, 3)).toBeLessThan(p(2, 2));
+    expect(p(2, 4)).toBeLessThan(p(2, 3));
+  });
+  it('the harder both fight, the higher the crash risk', () => {
+    const crash = (a: 1 | 2 | 3, d: 1 | 2 | 3 | 4) => duelOutcomes(T, 0.5, a, d, 0).crash;
+    expect(crash(1, 1)).toBe(0);
+    expect(crash(3, 3)).toBeGreaterThan(crash(2, 2));
+    expect(crash(3, 4)).toBeGreaterThan(crash(3, 3));
+  });
+  it('All or nothing rarely works and is almost always punished when it fails', () => {
+    const o = duelOutcomes(T, 0.5, 4, 2, 0);
+    expect(o.pass).toBeLessThan(0.25);
+    expect(o.spin + o.off + o.crash).toBeGreaterThan(0.6);
+    // but it ignores how hard the defender blocks
+    expect(duelOutcomes(T, 0.5, 4, 4, 0).pass).toBeGreaterThan(duelOutcomes(T, 0.5, 1, 4, 0).pass);
+  });
+  it('scales with the overtaking factor and pace advantage', () => {
+    expect(duelOutcomes(T, 0.25, 1, 1, 0).pass).toBeCloseTo(duelOutcomes(T, 0.5, 1, 1, 0).pass / 2);
+    expect(duelOutcomes(T, 0.5, 1, 1, 0.6).pass).toBeGreaterThan(duelOutcomes(T, 0.5, 1, 1, 0).pass);
+    expect(duelOutcomes(T, 0.8, 3, 1, 5).pass).toBeLessThanOrEqual(T.duel.maxPass);
   });
 });
 

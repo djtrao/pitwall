@@ -194,6 +194,43 @@ describe('safety car (7.6)', () => {
   });
 });
 
+describe('pit stop game', () => {
+  it('the game result changes the stop time', () => {
+    const times: number[] = [];
+    for (const seconds of [RHEIN_TUNING.pit.avgStop, 2.0, 5.0]) {
+      const r = soloRace({}, { pitGame: true });
+      applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+      const c = r.cars[0];
+      while (c.status !== 'pit') step(r);
+      expect(applyCommand(r, { type: 'pitStop', car: 'me-1', seconds, unsafe: false })).toBe(true);
+      while (c.status === 'pit') step(r);
+      times.push(r.time);
+    }
+    // 2.0 s is 0.6 s quicker than an average stop, 5.0 s is 2.4 s slower
+    expect(times[1] - times[0]).toBeCloseTo(-0.6, 0);
+    expect(times[2] - times[0]).toBeCloseTo(2.4, 0);
+  });
+  it('if the game never answers, the car still leaves the pits', () => {
+    const r = soloRace({}, { pitGame: true });
+    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+    const c = r.cars[0];
+    while (c.status !== 'pit') step(r);
+    let n = 0;
+    while (c.status === 'pit' && n < 1000) {
+      step(r);
+      n++;
+    }
+    expect(c.status).toBe('running');
+  });
+  it('an unsafe release costs a time penalty', () => {
+    const r = soloRace({}, { pitGame: true });
+    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+    while (r.cars[0].status !== 'pit') step(r);
+    applyCommand(r, { type: 'pitStop', car: 'me-1', seconds: 2.2, unsafe: true });
+    expect(r.cars[0].penalty).toBe(RHEIN_TUNING.pit.unsafeReleasePenalty);
+  });
+});
+
 describe('weather in the race', () => {
   it('track gets wet in rain and AI switches to rain tyres', () => {
     const laps = new Array(RHEIN.laps).fill(0).map((_, i) => (i >= 4 && i < 12 ? 0.9 : 0));
@@ -209,20 +246,20 @@ describe('weather in the race', () => {
 });
 
 describe('duels (7.5)', () => {
-  it('the duel preview gives chances and crash risks for each choice', () => {
+  it('the duel preview gives a chance and a risk for each of the 5 levels', () => {
     const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
     const fast = humanCar('fast-1', { autoDuel: false });
     const r = createRace({ seed: 2, track: RHEIN, cars: [slow, fast], weather: dryWeather(RHEIN.laps), safetyCar: null, tuning: makeTuning({ noise: 0 }) });
     while (!r.duels.length) step(r);
     const att = duelPreview(r, r.duels[0], 'fast-1');
-    expect(att.map((o) => o.choice)).toEqual(['inside', 'outside', 'wait']);
-    expect(att[2].success).toBe(0);
-    expect(att[0].crash).toBe(0);
-    expect(att[1].crash).toBeGreaterThan(0); // only Outside can crash
-    for (const o of att) expect(o.success + o.crash).toBeLessThanOrEqual(1);
+    expect(att.map((o) => o.choice)).toEqual([0, 1, 2, 3, 4]);
+    expect(att[0].success).toBe(0);
+    expect(att[1].risk).toBeLessThan(att[3].risk);
+    expect(att[4].risk).toBeGreaterThan(att[2].risk);
+    for (const o of att) expect(o.success + o.risk).toBeLessThanOrEqual(1 + 1e-9);
     const def = duelPreview(r, r.duels[0], 'slow-1');
-    expect(def.map((o) => o.choice)).toEqual(['coverInside', 'coverOutside', 'letGo']);
-    expect(def[2].success).toBeLessThan(def[0].success); // letting go only "holds" if the attacker waits
+    expect(def.map((o) => o.choice)).toEqual([0, 1, 2, 3, 4]);
+    expect(def[0].success).toBeLessThan(def[2].success);
   });
   it('a faster car cannot drive through a slower one and has to win a duel', () => {
     const slow = humanCar('slow-1', { carPace: 2, autoDuel: true, human: false, autopilot: false });
@@ -245,10 +282,13 @@ describe('duels (7.5)', () => {
     while (!r.duels.length) step(r);
     const d = r.duels[0];
     expect(d.attack).toBeNull();
-    expect(applyCommand(r, { type: 'duel', duel: d.id, car: 'fast-1', choice: 'wait' })).toBe(true);
+    expect(applyCommand(r, { type: 'duel', duel: d.id, car: 'fast-1', choice: 0 })).toBe(true);
     step(r);
-    expect(d.resolved).toBe(true);
+    // decided, then shown as an animation before it counts
+    expect(d.state).toBe('showing');
     expect(d.outcome).toBe('wait');
+    for (let i = 0; i < RHEIN_TUNING.duel.showSeconds / 0.1 + 1; i++) step(r);
+    expect(d.state).toBe('done');
   });
   it('unanswered human duels are decided automatically after the answer time (real seconds, any speed)', () => {
     const slow = humanCar('slow-1', { carPace: 1.5, human: false, autopilot: false });
@@ -259,9 +299,9 @@ describe('duels (7.5)', () => {
     r.speed = 4; // faster race, same real answer time
     const ticks = Math.round(RHEIN_TUNING.duel.answerSeconds / 0.1);
     for (let i = 0; i < ticks - 1; i++) step(r);
-    expect(d.resolved).toBe(false);
+    expect(d.state).toBe('choosing');
     step(r);
     step(r);
-    expect(d.resolved).toBe(true);
+    expect(d.state).not.toBe('choosing');
   });
 });

@@ -15,7 +15,7 @@ function startRace(setup: RaceSetup) {
   const field = buildField(
     { humans: [{ id: 'me', name: team.name, color: team.color, drivers: team.drivers }], seed: setup.seed, track: setup.track, tuning },
     setup.weather,
-  ).map((c) => (c.human ? { ...c, startTyre: setup.startTyres[Number(c.id.slice(-1)) - 1], autoDuel: true } : c));
+  ).map((c) => (c.human ? { ...c, startTyre: setup.startTyres[Number(c.id.slice(-1)) - 1], autoDuel: true, pitGame: true } : c));
   const grid = quickQualifying(field, setup.track, setup.weather, tuning, setup.seed);
   const race = createRace({ seed: setup.seed, track: setup.track, cars: grid, weather: setup.weather, tuning });
   window.scrollTo(0, 0);

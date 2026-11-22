@@ -73,13 +73,27 @@ export const DEFAULT_TUNING = {
     minGap: 0.4,
     /** Share of a lap the attacker must stay close before a duel starts. */
     closeLaps: 0.5,
-    /** Real seconds a human has to answer a duel prompt. */
-    answerSeconds: 5,
-    /** Base pass chance [attacker][defender]: rows Inside/Outside, columns CoverIn/CoverOut. */
-    pass: { inside: [0.2, 0.7], outside: [0.6, 0.25] },
-    crash: { inside: [0, 0], outside: [0.1, 0.15] },
-    /** Extra pass chance per 0.3 s of pace advantage. */
+    /** Real seconds a human has to choose. */
+    answerSeconds: 6,
+    /** Real seconds the duel animation runs before the result counts (only when a human chose). */
+    showSeconds: 3,
+    /**
+     * Levels: attack 0 = Wait, 1 Careful, 2 Bold, 3 Risky, 4 All or nothing.
+     * Defend 0 = Let go, 1 Clean, 2 Hard, 3 Very hard, 4 Slam the door.
+     */
+    attackPass: [0, 0.4, 0.55, 0.7, 0.2],
+    /** Taken off the pass chance by the defence level (All or nothing ignores it). */
+    defendCut: [0, 0, 0.12, 0.24, 0.36],
+    /** Crash chance added by each level. */
+    attackRisk: [0, 0, 0.03, 0.08, 0],
+    defendRisk: [0, 0, 0.02, 0.05, 0.1],
+    /** Extra crash chance when both fight at level 3 or more. */
+    bothHard: 0.05,
+    /** All or nothing: share of failures that are punished, split into spin / off (rest: contact). */
+    allIn: { punish: 0.85, spin: 0.5, off: 0.3, maxPass: 0.4 },
+    /** Extra pass chance per 0.3 s of pace advantage, capped. */
     paceBonusPer03: 0.1,
+    paceBonusMax: 0.3,
     maxPass: 0.95,
     failLoss: 0.3,
     failWear: 0.02,
@@ -92,13 +106,27 @@ export const DEFAULT_TUNING = {
     passMargin: 0.2,
   },
 
+  pit: {
+    /** Average time the car stands still (s, F1 scale) – already part of the track pit loss. */
+    avgStop: 2.6,
+    /** AI crews: spread of the standing time and chance of a fumbled stop. */
+    crewSpread: 0.25,
+    crewFumble: 0.05,
+    fumbleLoss: 2,
+    /** Real seconds the car waits for the pit stop game before the crew does an average stop. */
+    maxHold: 3,
+    /** Second car of a team waits behind the first. */
+    doubleStack: 3,
+    unsafeReleasePenalty: 5,
+  },
+
   safetyCar: {
     /** Lap time under the safety car = base × slow. */
     slow: 1.4,
     minLaps: 2,
     maxLaps: 4,
     wear: 0.3,
-    pitFactor: 0.2,
+    pitFactor: 0.5,
   },
 
   /** Multiplies every track's pit stop time loss (1 = spec values). */

@@ -38,7 +38,7 @@ Create 8 fictional tracks, each with its own drawn shape (closed spline, start/f
 | Base lap time | 70 to 90 s | simulation time |
 | Tyre wear factor | 0.8 to 1.3 | how fast tyres wear |
 | Overtaking factor | 0.2 (very hard) to 0.8 (easy) | duel success chances |
-| Pit stop time loss | 7 to 10 s | cost of a pit stop (short, because our races are short) |
+| Pit stop time loss | 18 to 25 s | cost of a pit stop (pit lane + an average 2.6 s standing time) |
 | Rain chance | 0.1 to 0.6 | chance of rain during the event |
 | Safety car chance | 0.2 to 0.6 | chance of a safety car per race |
 | 3 key corners | names + position on the lap | used in Hot Lap qualifying |
@@ -142,25 +142,36 @@ Keep the prototype model:
 
 When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel starts.
 
-- **Duel prompts only for the car you are following:** when a player taps a driver card, the track zooms in and follows that car. While following one of your own cars, every duel of that car shows a prompt with **5 seconds** to choose. The race does not pause. If nobody answers, the driver decides by himself (same logic as the AI). Duels of cars you are not following are always decided automatically.
-- Each choice shows its chance ("Pass: 70 %" / "Stay ahead: 60 %") and a **risk symbol** for the crash risk: 🟢 low, 🟡 medium, 🔴 high (colour + icon + word).
-- **Attacker** chooses: Inside, Outside, or Wait (stay behind, save tyres). **Defender** chooses: Cover inside, Cover outside, or Let him go.
-- AI-only duels are resolved automatically with the same table.
+- **Duel close-up only for the car you are following:** when a player taps a driver card, the track zooms in and follows that car. When that car (one of your own) gets into a duel, the track view changes to a **close-up of the two cars**: the attacker sits behind and looks for a way past. **Both sides get 6 seconds** to choose (in multiplayer two players may fight each other; the AI decides at once but secretly). The race does not pause. If nobody answers, the driver decides by himself (same logic as the AI). Duels of cars you are not following are decided automatically, without a close-up.
+- **Choices** (each with its chance in % and a risk symbol 🟢 🟡 🟠 🔴, colour + icon + word):
 
-| Attacker \ Defender | Cover inside | Cover outside | Let him go |
-| --- | --- | --- | --- |
-| Inside | 20% pass | 70% pass | pass |
-| Outside | 60% pass, 10% crash | 25% pass, 15% crash | pass |
+| Level | Attacker | Defender |
+| --- | --- | --- |
+| 0 | Wait (save tyres, no risk) | Let him go (lose no time) |
+| 1 | Careful | Clean |
+| 2 | Bold | Hard |
+| 3 | Risky | Very hard |
+| 4 | All or nothing! | Slam the door! |
 
-- The pass chance is then multiplied by the track's overtaking factor (scaled so 0.5 = ×1.0) and gets +10% for each 0.3 s of pace advantage (fresher tyres, Push mode).
+- **Rules:** a higher attack level passes more often, a harder defence lets fewer cars through, and the harder both fight, the higher the crash risk. Base pass chance for attack levels 1–3: 40 / 55 / 70 %, minus 0 / 12 / 24 / 36 % for defence levels 1–4. Crash chance: attack 0 / 3 / 8 %, plus defence 0 / 2 / 5 / 10 %, plus 5 % if both fight at level 3 or more.
+- **All or nothing** is a last-ditch effort: about 20 % success whatever the defender does, and a failure is almost always punished (85 %): a spin (−6 s), going off with a flat spot (−5 s), or contact (both −3 s, 60 % front wing damage).
+- The pass chance is multiplied by the track's overtaking factor (0.5 = ×1.0) and gets +10 % per 0.3 s of pace advantage (at most +30 %).
+- **Animation:** after both have chosen (or the 6 s are over), a ~3 s animation shows how it pans out. Three scenes, chosen by where the duel happens: a straight, a corner and a chicane. Each scene always starts the same way and then shows the ending: passed, defended, contact, spin, off the track, or waiting. The result counts in the race only after the animation (so the timing tower does not give it away).
 - **Failed attack:** attacker loses 0.3 s and 2% tyre condition. **Crash:** both lose 3 s, the attacker has a 30% chance of front wing damage (+0.8 s per lap until a pit stop repairs it, which adds 5 s to the stop).
+
+### 7.5b Pit stop game
+
+- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car, the 4 wheels light up one after another in random order – tap each as fast as possible (wrong wheel = stuck wheel nut). Then the release light: wait for green, then tap GO. Tapping on red is an unsafe release: +5 s penalty.
+- The reaction times are turned into an F1-style standing time (about 1.9 s to 6 s) and shown with a rating: great (≤ 2.2 s), good (≤ 2.8 s), a bit slow (≤ 3.6 s), slow. The difference to the average 2.6 s changes the stop.
+- If the player does not touch anything, the crew does an average stop (no penalty). AI crews vary a little and sometimes fumble (+2 s). The second car of a team that stops at the same time waits behind the first (+3 s).
+- The game runs on the phone; only the result is sent to the server (like the Hot Lap timing). In single player at 4× the race slows to 2× while the game runs.
 - The same pair cannot duel again for one lap. At most one duel prompt per driver per lap.
 
 ### 7.6 Safety car
 
 - Chance per race comes from the track (0.2 to 0.6). It can start anywhere between lap 2 and two laps before the end. A crash in a duel also has a 25% chance to bring it out.
 - It lasts 2 to 4 laps. All cars bunch up behind the leader about 0.4 s apart, drive slowly, and cannot overtake. Tyre wear ×0.3.
-- **A pit stop under the safety car costs only 20% of the normal time loss.** Show a big "SAFETY CAR" banner and a radio message: "Safety car! Box now?"
+- **A pit stop under the safety car costs only half the normal time loss.** Show a big "SAFETY CAR" banner and a radio message: "Safety car! Box now?"
 - On the restart, duels are possible again straight away.
 
 ### 7.7 AI teams
@@ -176,7 +187,7 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 - **Camera:** tapping a driver card (or a timing tower row) zooms the track in and follows that car; tapping again or tapping the track zooms out.
 - **Track view:** top-down track, cars as dots in team colour with their number, the player's own cars highlighted. Pitting cars move along the pit lane. Rain shown as streaks, a wet track darker. Safety car shown as its own car.
 - **Driver card:** position, tyre and condition bar, last lap, gap ahead and behind, buttons for the 4 driving modes, tyre choice + BOX button (pits at the end of the lap, can be cancelled), warnings (two-compound rule, worn tyres, damage).
-- **Duel prompt:** a big, clear pop-up on the zoomed track with the three choices, their chances and risk symbols, and a 5-second countdown bar.
+- **Duel close-up:** the track view changes to a close-up of the two cars with the five choices, their chances and risk symbols, and a 6-second countdown bar; then the animation.
 - Big touch targets (at least 44 px), readable text for 11-year-olds, short words, colour plus icons (not colour alone).
 - Results screen with positions gained or lost, pit stops, penalties, points; then the championship tables. A season-end screen with the champion.
 - Sounds (engine hum, radio beep, "Box box") as an optional later step.
@@ -194,11 +205,11 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 Tune the numbers with the headless balance runner until these hold. Report the statistics after each tuning round.
 
 - A race at 1× lasts 6 to 8 minutes.
-- Dry race, medium-wear track: the best one-stop and two-stop strategies finish within about 3 s of each other. On high-wear tracks, two stops are better.
+- Dry race: one stop is usually the best plan (pit stops are expensive); two stops only pay off with a safety car, mistakes or very worn tyres (decided after milestone 2).
 - Max Attack for a whole stint usually loses time (wear and mistakes). Short bursts of 1 to 3 laps (undercut, attacking on fresh tyres) usually gain.
 - Good use of Push over a race gains 5 to 8 s compared with Normal.
 - A good rain call (switching within one lap of the crossover) beats a late one (3 laps late) by 10 to 15 s.
-- A pit stop under the safety car gains clearly compared with a normal stop (about half a normal stop, 4–5 s, alone; more in the field, because the field bunches up).
+- A pit stop under the safety car gains clearly compared with a normal stop (about 8–10 s).
 - A perfect Hot Lap is about 1.5 s faster than an all-Safe lap, which is worth several grid places.
 - A well-played human team can win about 1 race in 3. A badly played team finishes midfield or lower.
 

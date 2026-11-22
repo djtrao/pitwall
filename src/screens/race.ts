@@ -19,6 +19,8 @@ import {
 } from '../sim';
 import { $, esc, shortName, tyreIcon, tyreName } from '../ui/common';
 import { canGoFullscreen, goFullscreen } from '../ui/fullscreen';
+import { DuelView } from '../ui/duelview';
+import { pitRating, runPitGame } from '../ui/pitgame';
 import { TrackView } from '../ui/trackview';
 
 const TICK = 0.1; // real seconds per simulation tick (same as the server later)
@@ -64,7 +66,8 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
         <canvas id="cv"></canvas>
         <div id="scb"></div>
         <div class="ticker" id="ticker"></div>
-        <div class="duel" id="duel"></div>
+        <div class="duelzone" id="duelzone"><canvas id="dcv"></canvas><div class="duel" id="duel"></div></div>
+        <div class="pitgame" id="pitgame"></div>
         <div id="banner"><b>${t('chequered')}</b><button class="big" id="tores">${t('seeResults')}</button></div>
       </div>
       <div class="r-cards" id="cards">${mine.map((c, i) => cardHTML(c, i)).join('')}</div>
@@ -74,7 +77,11 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     </div>`;
 
   const tv = new TrackView($('cv') as HTMLCanvasElement, race.track);
-  const onResize = () => requestAnimationFrame(() => tv.fit());
+  const onResize = () =>
+    requestAnimationFrame(() => {
+      tv.fit();
+      if (active) dv.fit();
+    });
   window.addEventListener('resize', onResize);
   screen.orientation?.addEventListener?.('change', onResize);
 
@@ -137,7 +144,8 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     last = now;
     if (!race.over && speed > 0) {
       // always 10 ticks per real second; a faster race takes bigger steps (like the server)
-      race.speed = speed;
+      // single player at 4×: slow to 2× while the pit stop game runs, so the stop does not end before you finish
+      race.speed = pitPlaying ? Math.min(speed, 2) : speed;
       acc += dt;
       let n = 0;
       while (acc >= TICK && n < 100) {
@@ -157,7 +165,8 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
       },
       isMine,
     );
-    updateDuelPrompt();
+    updateDuel();
+    updatePitGame();
     uiTimer += dt;
     if (uiTimer > 0.2) {
       uiTimer = 0;
@@ -170,50 +179,92 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
     requestAnimationFrame(frame);
   };
 
-  /* ---------- duel prompt (only while following one of your cars) ---------- */
-  let shownDuel: number | null = null;
+  /* ---------- duel close-up (only while following one of your cars) ---------- */
+  const dv = new DuelView($('dcv') as HTMLCanvasElement);
+  let active: { id: number; carId: string; attacking: boolean; playing: boolean } | null = null;
 
-  function pendingDuel(): { duel: Duel; carId: string; attacking: boolean } | null {
-    const id = tv.followId;
-    if (!id || !mine.some((c) => c.id === id)) return null;
-    for (const d of race.duels) {
-      if (d.resolved) continue;
-      if (d.attacker === id && d.attack === null) return { duel: d, carId: id, attacking: true };
-      if (d.defender === id && d.defend === null) return { duel: d, carId: id, attacking: false };
-    }
-    return null;
+  function closeDuel() {
+    active = null;
+    $('duelzone').classList.remove('show');
   }
 
-  function updateDuelPrompt() {
-    const box = $('duel');
-    const p = pendingDuel();
-    if (!p) {
-      if (shownDuel !== null) {
-        shownDuel = null;
-        box.classList.remove('show');
-      }
+  function updateDuel() {
+    const id = tv.followId;
+    const followingMine = !!id && mine.some((c) => c.id === id);
+    if (!active) {
+      if (!followingMine) return;
+      const d = race.duels.find((x) => x.state === 'choosing' && x.prompted && (x.attacker === id || x.defender === id));
+      if (!d) return;
+      const attacking = d.attacker === id;
+      if ((attacking ? d.attack : d.defend) !== null) return;
+      active = { id: d.id, carId: id!, attacking, playing: false };
+      const att = race.cars.find((c) => c.id === d.attacker)!;
+      const def = race.cars.find((c) => c.id === d.defender)!;
+      $('duelzone').classList.add('show');
+      dv.start(tv.sceneAt(d.at), { color: att.color, num: att.num }, { color: def.color, num: def.num });
+      renderDuelChoices(d, attacking ? def : att);
+    }
+    const d = race.duels.find((x) => x.id === active!.id);
+    if (!d || d.outcome === 'cancelled' || (active.carId !== tv.followId && !active.playing)) {
+      closeDuel();
       return;
     }
-    if (shownDuel !== p.duel.id) {
-      shownDuel = p.duel.id;
-      const otherId = p.attacking ? p.duel.defender : p.duel.attacker;
-      const other = race.cars.find((c) => c.id === otherId)!;
-      const opts = duelPreview(race, p.duel, p.carId);
-      box.innerHTML = `
-        <div class="duel-title">${esc(t(p.attacking ? 'duelAttack' : 'duelDefend', { other: `#${other.num} ${surname(other.name)}` }))}</div>
-        <div class="duel-time"><i id="duelbar"></i></div>
-        <div class="duel-opts">${opts.map((o) => duelButton(o.choice, o.success, o.crash, p.attacking)).join('')}</div>`;
-      box.classList.add('show');
-      box.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach((b) => {
-        b.onclick = () => {
-          applyCommand(race, { type: 'duel', duel: p.duel.id, car: p.carId, choice: b.dataset.choice as DuelAttack | DuelDefend });
-          box.classList.remove('show');
-        };
-      });
+    if (d.state === 'choosing') {
+      const left = Math.max(0, d.deadline - race.realTime) / race.tuning.duel.answerSeconds;
+      const bar = document.getElementById('duelbar');
+      if (bar) bar.style.width = `${left * 100}%`;
+    } else if (!active.playing && d.outcome) {
+      active.playing = true;
+      $('duel').innerHTML = '';
+      const caption = { pass: t('outPass'), fail: t('outHeld'), crash: t('outCrash'), spin: t('outSpin'), off: t('outOff'), wait: t('outWait') }[d.outcome as 'pass'];
+      dv.play(d.outcome, caption ?? '', race.tuning.duel.showSeconds);
     }
-    const left = Math.max(0, p.duel.deadline - race.realTime) / race.tuning.duel.answerSeconds;
-    const bar = document.getElementById('duelbar');
-    if (bar) bar.style.width = `${left * 100}%`;
+    dv.draw();
+    if (active.playing && dv.finished) closeDuel();
+  }
+
+  function renderDuelChoices(d: Duel, other: Car) {
+    const opts = duelPreview(race, d, active!.carId);
+    const attacking = active!.attacking;
+    const box = $('duel');
+    box.innerHTML = `
+      <div class="duel-title">${esc(t(attacking ? 'duelAttack' : 'duelDefend', { other: `#${other.num} ${surname(other.name)}` }))}</div>
+      <div class="duel-time"><i id="duelbar"></i></div>
+      <div class="duel-opts">${opts.map((o) => duelButton(o.choice, o.success, o.risk, attacking)).join('')}</div>`;
+    box.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach((b) => {
+      b.onclick = () => {
+        applyCommand(race, { type: 'duel', duel: d.id, car: active!.carId, choice: Number(b.dataset.choice) as DuelAttack | DuelDefend });
+        box.innerHTML = `<div class="duel-title">${t('duelWaiting')}</div>`;
+      };
+    });
+  }
+
+  /* ---------- pit stop game ---------- */
+  const pitQueue: Car[] = [];
+  const pitSeen = new Set<string>();
+  let pitPlaying = false;
+
+  function updatePitGame() {
+    for (const c of mine) {
+      const key = `${c.id}-${c.stops}`;
+      if (c.status === 'pit' && c.pitAwait && !pitSeen.has(key)) {
+        pitSeen.add(key);
+        pitQueue.push(c);
+      }
+    }
+    if (pitPlaying || !pitQueue.length) return;
+    const c = pitQueue.shift()!;
+    if (c.status !== 'pit' || !c.pitAwait) return;
+    pitPlaying = true;
+    runPitGame(
+      $('pitgame'),
+      esc(t('pitTitle', { car: `#${c.num} ${surname(c.name)}` })),
+      race.tuning.pit.avgStop,
+      (r) => {
+        applyCommand(race, { type: 'pitStop', car: c.id, seconds: r.seconds, unsafe: r.unsafe });
+      },
+      () => (pitPlaying = false),
+    );
   }
 
   /* ---------- text panels ---------- */
@@ -367,6 +418,10 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
         if (carMine) return msg('rPassMine');
         if (otherMine) return msg('rPassedMine', {}, true);
         return null;
+      case 'duelSpin': return msg('rDuelSpin', {}, carMine || otherMine);
+      case 'duelOff': return msg('rDuelOff', {}, carMine || otherMine);
+      case 'pitStopTime': return carMine ? msg('rPitStop', { s: num(Number(e.data?.seconds)), rating: pitRating(Number(e.data?.seconds)) }) : null;
+      case 'unsafeRelease': return carMine ? msg('rUnsafe', { s: e.data?.seconds ?? 5 }) : null;
       case 'duelFail': return carMine || otherMine ? msg('rDuelFail', {}, carMine || otherMine) : null;
       case 'crash': return msg('rCrash', {}, carMine || otherMine);
       case 'wingDamage': return msg('rWing');
@@ -395,21 +450,20 @@ export function raceScreen(app: HTMLElement, race: RaceState, onDone: () => void
   });
 }
 
-const CHOICE_ICON: Record<string, string> = { inside: '↙️', outside: '↗️', wait: '⏳', coverInside: '⬅️', coverOutside: '➡️', letGo: '👋' };
+const ATTACK_ICON = ['⏳', '🙂', '😤', '😈', '🎲'];
+const DEFEND_ICON = ['👋', '🛡️', '💪', '🧱', '🚪'];
+const RISK_ICON = ['🟢', '🟢', '🟡', '🟠', '🔴'];
 
-/** One duel choice button with its chance and a risk symbol (colour + icon + word). */
-function duelButton(choice: string, success: number, crash: number, attacking: boolean): string {
-  const risk = crash < 0.03 ? 'low' : crash < 0.08 ? 'mid' : 'high';
-  const riskIcon = { low: '🟢', mid: '🟡', high: '🔴' }[risk];
-  const riskText = t(risk === 'low' ? 'riskLow' : risk === 'mid' ? 'riskMid' : 'riskHigh');
+/** One duel choice: name, chance and a risk symbol (colour + icon + word). */
+function duelButton(level: number, success: number, risk: number, attacking: boolean): string {
+  const r = risk < 0.005 ? 0 : risk < 0.04 ? 1 : risk < 0.1 ? 2 : risk < 0.25 ? 3 : 4;
   let chance: string;
-  if (choice === 'wait') chance = t('chWait');
-  else if (choice === 'letGo') chance = t('chLetGo');
+  if (level === 0) chance = t(attacking ? 'chWait' : 'chLetGo');
   else chance = t(attacking ? 'chPass' : 'chHold', { p: Math.round(success * 100) });
-  return `<button data-choice="${choice}" class="risk-${risk}">
-    <span class="dc-name">${CHOICE_ICON[choice]} ${t(`ch_${choice}` as StringKey)}</span>
+  return `<button data-choice="${level}" class="risk-${r}">
+    <span class="dc-name">${(attacking ? ATTACK_ICON : DEFEND_ICON)[level]} ${t(`${attacking ? 'att' : 'def'}${level}` as StringKey)}</span>
     <span class="dc-chance">${chance}</span>
-    <span class="dc-risk">${riskIcon} ${riskText}</span>
+    <span class="dc-risk">${RISK_ICON[r]} ${t(`risk${r}` as StringKey)}</span>
   </button>`;
 }
 

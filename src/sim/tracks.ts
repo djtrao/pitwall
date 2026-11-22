@@ -13,7 +13,7 @@ export const TRACKS: Track[] = [
     base: 78,
     wear: 1.0,
     overtaking: 0.55,
-    pitLoss: 8.5,
+    pitLoss: 21,
     rainChance: 0.45,
     safetyCarChance: 0.35,
     corners: [
@@ -31,7 +31,7 @@ export const TRACKS: Track[] = [
     base: 72,
     wear: 0.8,
     overtaking: 0.22,
-    pitLoss: 7.5,
+    pitLoss: 19,
     rainChance: 0.15,
     safetyCarChance: 0.6,
     corners: [
@@ -49,7 +49,7 @@ export const TRACKS: Track[] = [
     base: 84,
     wear: 1.3,
     overtaking: 0.8,
-    pitLoss: 9,
+    pitLoss: 23,
     rainChance: 0.6,
     safetyCarChance: 0.3,
     corners: [

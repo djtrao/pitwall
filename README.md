@@ -11,8 +11,10 @@ A Formula 1 team-manager game for phones (1–4 players). See [SPEC.md](SPEC.md)
 | --- | --- | --- |
 | 1 | Simulation core + unit tests + balance runner | ✅ done |
 | 2 | Single-player race screen (German + English) | ✅ done |
-| 3 | Overtaking duels | next |
-| 4–7 | Hot Lap, season, multiplayer, polish | later |
+| 2b | Landscape layout, follow camera | ✅ done |
+| 3 | Overtaking duels (close-up + animations) and pit stop game | ✅ done |
+| 4 | Hot Lap qualifying | next |
+| 5–7 | Season, multiplayer, polish | later |
 
 ## Project layout
 
@@ -27,7 +29,7 @@ src/sim/        the race engine (pure TypeScript, no browser code – also runs 
   teams.ts      fictional AI teams, points
   grid.ts       building the 12-car field, stand-in qualifying
 src/screens/    start screen, race screen, results
-src/ui/         track drawing and small helpers
+src/ui/         track drawing, duel close-up, pit stop game, helpers
 src/i18n.ts     all UI text, German and English
 tests/          unit tests (Vitest)
 scripts/        balance runner and a quick one-race printout
