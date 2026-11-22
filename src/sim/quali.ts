@@ -15,7 +15,7 @@ export type Difficulty = 'rookie' | 'pro';
 
 export const QUALI = {
   /** Green zone width as a share of the bar, per risk level. */
-  green: [0.4, 0.25, 0.12],
+  green: [0.4, 0.25, 0.08],
   /** Each yellow zone beside the green one. */
   yellow: 0.12,
   /** Time change (s) per risk level. */
@@ -39,6 +39,8 @@ export const QUALI = {
   markerSeconds: { rookie: 1.4, pro: 0.95 } as Record<Difficulty, number>,
   /** The marker speeds up while it moves: position = (time share) ^ curve. */
   markerCurve: 1.6,
+  /** More risk = braking later = the marker comes faster (Safe, Attack, Send it!). */
+  riskSpeed: [1, 1.25, 1.6],
   /** The braking point (centre of the zones) sits somewhere in this part of the bar. */
   centreMin: 0.3,
   centreMax: 0.72,
@@ -89,8 +91,9 @@ export function randomCentre(roll: number): number {
 }
 
 /** Marker position (0..1) after `seconds`; it speeds up while it moves. */
-export function markerAt(seconds: number, difficulty: Difficulty): number {
-  return Math.min(1, Math.pow(Math.max(0, seconds) / QUALI.markerSeconds[difficulty], QUALI.markerCurve));
+export function markerAt(seconds: number, difficulty: Difficulty, risk: CornerRisk = 0): number {
+  const crossing = QUALI.markerSeconds[difficulty] / QUALI.riskSpeed[risk];
+  return Math.min(1, Math.pow(Math.max(0, seconds) / crossing, QUALI.markerCurve));
 }
 
 /** Turn a hit into a time change. `roll` is a random number 0..1 (deletion on a missed Send it!). */

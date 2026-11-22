@@ -244,7 +244,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     };
   }
 
-  const markerPos = () => markerAt((performance.now() - phaseStart) / 1000, difficulty);
+  const markerPos = () => markerAt((performance.now() - phaseStart) / 1000, difficulty, risk);
 
   function judge() {
     const hit = hitAt(tapPos, zonesFor(risk, tyre, wet, centre));

@@ -10,7 +10,31 @@ export interface ResultActions {
   menu: () => void;
 }
 
-function resultTable(rows: ResultRow[], points: Record<string, number> | null, mine: (teamId: string, human: boolean) => boolean): string {
+/** Why a car got time penalties (from the race events). */
+function penaltyReasons(race: RaceState): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  const add = (id: string | undefined, txt: string) => id && m.set(id, [...(m.get(id) ?? []), txt]);
+  for (const e of race.events) {
+    if (e.kind === 'unsafeRelease') add(e.car, `+${e.data?.seconds ?? 5} s 🚦 ${t('penUnsafe')}`);
+    if (e.kind === 'penalty') add(e.car, `+${e.data?.seconds ?? 20} s 🛞 ${t('penTyre')}`);
+  }
+  return m;
+}
+
+/** Order in which the cars crossed the line (before penalties). */
+function roadOrder(rows: ResultRow[]): Map<string, number> {
+  const fin = rows.filter((r) => r.car.status === 'finished').map((r) => r.car);
+  fin.sort((a, b) => b.lap - a.lap || a.finishTime - b.finishTime);
+  return new Map(fin.map((c, i) => [c.id, i + 1]));
+}
+
+function resultTable(
+  rows: ResultRow[],
+  points: Record<string, number> | null,
+  mine: (teamId: string, human: boolean) => boolean,
+  reasons: Map<string, string[]>,
+): string {
+  const road = roadOrder(rows);
   return `<table class="res">
     <tr><th>${t('pos')}</th><th>${t('driver')}</th><th>${t('time')}</th><th>${t('stops')}</th><th>${t('points')}</th></tr>
     ${rows
@@ -24,7 +48,8 @@ function resultTable(rows: ResultRow[], points: Record<string, number> | null, m
         else time = `+${num(r.gap)} s`;
         const pts = points ? points[c.id] ?? 0 : POINTS[r.pos - 1] ?? 0;
         return `<tr class="${mine(c.teamId, c.human) ? 'me' : ''}"><td>${r.pos}</td>
-          <td><span class="chip" style="background:${c.color}"></span>#${c.num} ${esc(c.name)} ${moved}</td>
+          <td><span class="chip" style="background:${c.color}"></span>#${c.num} ${esc(c.name)} ${moved}
+            ${c.penalty ? `<div class="penwhy">${road.get(c.id) !== r.pos ? `🏁 ${t('resRoad', { p: road.get(c.id) ?? '–' })} · ` : ''}${(reasons.get(c.id) ?? [`+${c.penalty} s`]).map(esc).join(' · ')}</div>` : ''}</td>
           <td>${time}${c.penalty ? `<span class="pill">+${c.penalty} s</span>` : ''}</td>
           <td>${c.stops}</td><td>${pts || ''}</td></tr>`;
       })
@@ -61,13 +86,15 @@ export function resultsScreen(
   myTeam?: string,
 ): void {
   const rows = results(race);
+  const reasons = penaltyReasons(race);
+  const anyPenalty = rows.some((x) => x.car.penalty > 0);
   const mine = (teamId: string, human: boolean) => (myTeam ? teamId === myTeam : human);
   const best = rows.find((r) => mine(r.car.teamId, r.car.human));
   app.innerHTML = `
     <h1>${t('result')} · ${esc(race.track.name)}</h1>
     ${season ? `<div class="mut small">${t('bRound', { r: season.results.length, n: season.trackIds.length })}</div>` : ''}
     ${best ? `<p class="sub">${t('bestOfYou', { pos: best.pos })}</p>` : ''}
-    <div class="panel">${resultTable(rows, points ?? null, mine)}</div>
+    <div class="panel">${resultTable(rows, points ?? null, mine, reasons)}${anyPenalty ? `<p class="hint">⚖️ ${t('penLegend')}</p>` : ''}</div>
     ${season ? standingsHTML(season, myTeam) : ''}
     <button class="big" id="next">${a.nextLabel}</button>
     <button class="big" id="menu" style="background:#222935">${t('toMenu')}</button>`;

@@ -23,10 +23,10 @@ import { humanCar, RHEIN } from './helpers';
 const T = makeTuning();
 
 describe('Hot Lap zones (section 6)', () => {
-  it('green zone is 40 / 25 / 12 % of the bar for Safe / Attack / Send it on Medium', () => {
+  it('green zone is 40 / 25 / 8 % of the bar for Safe / Attack / Send it on Medium', () => {
     expect(zonesFor(0, 'M', 0).green * 2).toBeCloseTo(0.4);
     expect(zonesFor(1, 'M', 0).green * 2).toBeCloseTo(0.25);
-    expect(zonesFor(2, 'M', 0).green * 2).toBeCloseTo(0.12);
+    expect(zonesFor(2, 'M', 0).green * 2).toBeCloseTo(0.08);
   });
   it('Soft makes zones 20 % wider, Hard 15 % narrower, slicks in the wet 40 % narrower', () => {
     expect(zonesFor(1, 'S', 0).green / zonesFor(1, 'M', 0).green).toBeCloseTo(1.2);
@@ -48,14 +48,18 @@ describe('Hot Lap timing is a real challenge', () => {
   function greenWindow(risk: 0 | 1 | 2, centre: number, d: 'rookie' | 'pro'): number {
     const z = zonesFor(risk, 'M', 0, centre);
     let inside = 0;
-    for (let ms = 0; ms < 3000; ms++) if (hitAt(markerAt(ms / 1000, d), z) === 'green') inside++;
+    for (let ms = 0; ms < 3000; ms++) if (hitAt(markerAt(ms / 1000, d, risk), z) === 'green') inside++;
     return inside;
   }
-  it('Send it! gives only about a tenth of a second for Pro, a bit more for Rookies', () => {
+  it('Send it! gives only about 50 ms for Pro and 80 ms for Rookies', () => {
     for (const c of [0.3, 0.5, 0.72]) {
-      expect(greenWindow(2, c, 'pro')).toBeLessThan(120);
-      expect(greenWindow(2, c, 'rookie')).toBeLessThan(170);
+      expect(greenWindow(2, c, 'pro')).toBeLessThan(65);
+      expect(greenWindow(2, c, 'rookie')).toBeLessThan(95);
     }
+  });
+  it('Attack sits in between', () => {
+    expect(greenWindow(1, 0.5, 'pro')).toBeLessThan(greenWindow(0, 0.5, 'pro') / 2);
+    expect(greenWindow(1, 0.5, 'pro')).toBeGreaterThan(greenWindow(2, 0.5, 'pro') * 2);
   });
   it('Safe stays easy-ish', () => {
     expect(greenWindow(0, 0.5, 'rookie')).toBeGreaterThan(350);

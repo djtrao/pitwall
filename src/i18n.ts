@@ -211,7 +211,7 @@ const STRINGS = {
   qRisk2: { de: 'Voll rein!', en: 'Send it!' },
   qRiskInfo0: { de: 'großes Grün · ±0 s', en: 'big green · ±0 s' },
   qRiskInfo1: { de: 'Grün: −0,25 s', en: 'green: −0.25 s' },
-  qRiskInfo2: { de: 'Grün: −0,5 s · Runde kann weg sein!', en: 'green: −0.5 s · lap may be deleted!' },
+  qRiskInfo2: { de: 'Grün: −0,5 s · sehr schwer · Runde kann weg sein!', en: 'green: −0.5 s · very hard · lap may be deleted!' },
   qTap: { de: 'TIPPEN am Bremspunkt!', en: 'TAP at the braking point!' },
   qGreen: { de: 'PERFEKT!', en: 'PERFECT!' },
   qYellow: { de: 'GEHT SO', en: 'OK' },
@@ -317,6 +317,12 @@ const STRINGS = {
   rWorn: { de: '🛞 {car}: Reifen bei {cond} % – denk an die Box!', en: '🛞 {car}: tyres at {cond} % – think about boxing!' },
   rPenalty: { de: '⚠️ {car}: +20 s – nur eine Trocken-Reifen-Sorte!', en: '⚠️ {car}: +20 s – only one dry tyre type!' },
   rWin: { de: '🏆 {car} gewinnt das Rennen!', en: '🏆 {car} wins the race!' },
+  rWinPenalty: { de: '🏁 {car} ist als Erster im Ziel – aber mit {s} s Strafe!', en: '🏁 {car} crosses the line first – but with a {s} s penalty!' },
+  warnPenalty: { de: '⚠️ +{s} s Strafe kommt im Ziel dazu', en: '⚠️ +{s} s penalty added at the finish' },
+  resRoad: { de: 'im Ziel P{p}', en: 'crossed the line P{p}' },
+  penUnsafe: { de: 'zu früh aus der Box losgefahren', en: 'released too early from the pits' },
+  penTyre: { de: 'nur eine Trocken-Reifensorte benutzt', en: 'used only one dry tyre type' },
+  penLegend: { de: 'Zeitstrafen werden zur Rennzeit addiert – deshalb kann sich die Reihenfolge nach dem Ziel noch ändern.', en: 'Time penalties are added to the race time – so the order can still change after the finish.' },
   rFinish: { de: '🏁 {car} ist im Ziel', en: '🏁 {car} crosses the line' },
 } satisfies Record<string, Record<Lang, string>>;
 

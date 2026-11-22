@@ -358,6 +358,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
         if (c.tyre !== 'W' && race.wetness > cross + 5) warn.push(t('warnWet'));
         if (c.tyre === 'W' && race.wetness < cross - 8 && race.rainNow === 0) warn.push(t('warnDry'));
       }
+      if (c.penalty > 0) warn.push(t('warnPenalty', { s: c.penalty }));
       if (!tyreRuleOk(c.usedTyres) && !(c.pitPlan && !c.usedTyres.includes(c.pitPlan))) warn.push(t('warnRule'));
       if (c.status === 'running') {
         if (c.wingDamage) warn.push(t('warnWing'));
@@ -406,7 +407,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       const flag = (c.wingDamage ? '🪛' : '') + (c.engineDamage ? '⚙️' : '') + (c.status === 'running' && c.loss > 0 ? '⚠️' : c.pitPlan ? '📻' : '');
       const followed = tv.followId === c.id ? ' follow' : '';
       return `<tr class="${isMine(c) ? 'me' : ''}${followed}" data-follow="${c.id}"><td class="p">${i + 1}</td>
-        <td class="n"><span class="chip" style="background:${c.color}"></span><span class="tn">${c.num}</span><span class="nm">${esc(surname(c.name))}</span><span class="code">${shortName(c.name)}</span>${flag}</td>
+        <td class="n"><span class="chip" style="background:${c.color}"></span><span class="tn">${c.num}</span><span class="nm">${esc(surname(c.name))}</span>${c.penalty ? `<span class="pen">+${c.penalty}s</span>` : ''}<span class="code">${shortName(c.name)}</span>${flag}</td>
         <td class="ty">${tyreIcon(c.tyre, true)}</td><td class="g">${gap}</td></tr>`;
     });
     $('tower').innerHTML = `<table>${rows.join('')}</table>`;
@@ -478,7 +479,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
         return msg('rWorn', { cond: e.data?.cond ?? 0 });
       }
       case 'penalty': return carMine ? msg('rPenalty') : null;
-      case 'win': return msg('rWin', {}, true);
+      case 'win': return e.data?.penalty ? msg('rWinPenalty', { s: e.data.penalty }, true) : msg('rWin', {}, true);
       case 'finish': return carMine ? msg('rFinish') : null;
       default: return null;
     }

@@ -342,3 +342,6 @@ label { display: block; font-size: 13px; color: var(--mut); margin: 8px 0 3px; }
 .quickpanel .tracks { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
 .quickpanel .tracks button { padding: 6px 10px; }
 .quickpanel .big { max-width: 420px; }
+
+.penwhy { font-size: 12px; color: #ffb3b3; font-weight: 600; white-space: normal; margin-top: 2px; }
+.r-tower .pen { font-size: 0.75em; background: #5a1d1d; color: #ffb3b3; border-radius: 4px; padding: 0 3px; margin-left: 3px; }
