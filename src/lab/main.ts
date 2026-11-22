@@ -215,7 +215,6 @@ function radio(e: RaceEvent): string | null {
     case 'mistakeSmall': return `😬 ${a} runs wide`;
     case 'mistakeBig': return `🛞 ${a} goes off – flat-spotted tyre!`;
     case 'spin': return `💫 ${a} spins on slick tyres in the wet!`;
-    case 'outOfFuel': return `⛽ ${a} is out of fuel – retired`;
     case 'penalty': return `⚠️ ${a}: +20 s – only one dry tyre type used`;
     case 'win': return `🏆 ${a} wins the race!`;
     default: return null;

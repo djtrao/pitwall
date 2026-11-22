@@ -55,7 +55,6 @@ interface Plan {
   start: Tyre;
   /** Box at the end of these laps (1-based) for these tyres. */
   stops: { lap: number; tyre: Tyre }[];
-  fuel?: number;
   /** Wanted mode for a lap (1-based). Default Normal. */
   mode?: (lap: number, race: RaceState) => Mode;
   /** Called every tick, may issue commands (e.g. rain calls). */
@@ -66,20 +65,6 @@ function car(race: RaceState) {
   return race.cars.find((c) => c.id === ME)!;
 }
 
-/**
- * Best affordable mode, saving fuel as late as possible: the wanted mode is used as long as
- * Conserve on all remaining laps could still bring the car home.
- */
-function fuelSafeMode(race: RaceState, want: Mode): Mode {
-  const c = car(race);
-  const left = race.track.laps - Math.max(0, c.lap);
-  const t = race.tuning;
-  for (let m = want; m >= 1; m--) {
-    if (c.fuel - t.modes[m].fuel - (left - 1) * t.modes[0].fuel >= 0.05) return m as Mode;
-  }
-  return 0;
-}
-
 function drive(race: RaceState, plan: Plan): void {
   const c = car(race);
   let seen = -2;
@@ -87,7 +72,7 @@ function drive(race: RaceState, plan: Plan): void {
     if (c.lap !== seen && c.status === 'running') {
       seen = c.lap;
       const lapNow = Math.max(1, c.lap + 1);
-      applyCommand(race, { type: 'mode', car: ME, mode: fuelSafeMode(race, plan.mode?.(lapNow, race) ?? 1) });
+      applyCommand(race, { type: 'mode', car: ME, mode: plan.mode?.(lapNow, race) ?? 1 });
       const stop = plan.stops.find((s) => s.lap === lapNow);
       if (stop) applyCommand(race, { type: 'pit', car: ME, tyre: stop.tyre });
     }
@@ -96,7 +81,7 @@ function drive(race: RaceState, plan: Plan): void {
   }
 }
 
-function me(track: Track, plan: Plan): CarSetup {
+function me(plan: Plan): CarSetup {
   return {
     id: ME,
     name: 'Test',
@@ -108,7 +93,6 @@ function me(track: Track, plan: Plan): CarSetup {
     carPace: 0,
     driverPace: 0,
     startTyre: plan.start,
-    fuel: plan.fuel ?? track.laps + 0.5,
     autoDuel: true,
   };
 }
@@ -125,7 +109,7 @@ interface Scenario {
 function raceTime(sc: Scenario, plan: Plan, seed: number): { time: number; pos: number; dnf: boolean } {
   const track = sc.track;
   const weather = sc.weather?.(seed) ?? dryWeather(track.laps);
-  let cars: CarSetup[] = [me(track, plan)];
+  let cars: CarSetup[] = [me(plan)];
   if (sc.field) {
     const others = buildField({ humans: [{ id: 'x', name: 'X', color: '#fff', drivers: [{ name: 'a', num: 98 }, { name: 'b', num: 99 }] }], seed, track, tuning: TUNING }, weather)
       .filter((c) => c.teamId !== 'x');
@@ -188,7 +172,7 @@ const planName = (p: Plan) => p.start + p.stops.map((s) => `-${s.lap}-${s.tyre}`
 /* 1. strategy search                                                  */
 /* ------------------------------------------------------------------ */
 
-function bestPlans(track: Track) {
+function bestPlans(track: Track, mode?: Plan['mode']) {
   const sc: Scenario = { track };
   const L = track.laps;
   const T: Tyre[] = ['S', 'M', 'H'];
@@ -196,12 +180,12 @@ function bestPlans(track: Track) {
   const two: Plan[] = [];
   for (const a of T) for (const b of T) {
     if (a === b) continue;
-    for (let l = 2; l <= L - 2; l++) one.push({ start: a, stops: [{ lap: l, tyre: b }] });
+    for (let l = 2; l <= L - 2; l++) one.push({ start: a, stops: [{ lap: l, tyre: b }], mode });
   }
   for (const a of T) for (const b of T) for (const c of T) {
     if (a === b && b === c) continue;
     for (let l1 = 2; l1 <= L - 4; l1++) for (let l2 = l1 + 2; l2 <= L - 2; l2++) {
-      two.push({ start: a, stops: [{ lap: l1, tyre: b }, { lap: l2, tyre: c }] });
+      two.push({ start: a, stops: [{ lap: l1, tyre: b }, { lap: l2, tyre: c }], mode });
     }
   }
   const rank = (plans: Plan[]) => plans.map((p) => ({ p, t: avgTime(sc, p, SEARCH_N) })).sort((x, y) => x.t - y.t);
@@ -268,7 +252,7 @@ function main() {
 
   if (want('maxattack')) {
     /* --- Max Attack --- */
-    out(`## Max Attack (Rheinring, plan ${planName(best.rheinring)}, fuel ${RHEIN.laps + 0.5} laps, saves fuel when needed)`);
+    out(`## Max Attack (Rheinring, plan ${planName(best.rheinring)})`);
     const fullStint = compare(sc, base, { ...base, mode: (l) => (l <= stopLap ? 3 : 1) });
     out(`  Max Attack the whole first stint: ${f1(fullStint.diff)} s`);
     verdict('Max Attack for a whole stint loses time', fullStint.diff > 0, `${f1(fullStint.diff)} s`);
@@ -292,27 +276,24 @@ function main() {
   if (want('push')) {
     /* --- Push --- */
     out('## Push over a race vs all Normal (Rheinring)');
+    const endOfStints = (p: Plan) => (l: number) => (p.stops.some((st) => l > st.lap - 3 && l <= st.lap) || l > RHEIN.laps - 3 ? 2 : 1) as Mode;
     const pushPolicies: [string, Plan][] = [
-      ['push until fuel runs low, then conserve (fuel 105 %)', { ...base, fuel: 16.5, mode: () => 2 }],
-      ['push until fuel runs low, then conserve (fuel default)', { ...base, mode: () => 2 }],
-      ['push last 4 laps', { ...base, mode: (l) => (l > RHEIN.laps - 4 ? 2 : 1) }],
-      ['push last 3 laps of each stint', { ...base, mode: (l) => ((l > stopLap - 3 && l <= stopLap) || l > RHEIN.laps - 3 ? 2 : 1) }],
-      ['push last 3 of each stint, fuel 105 %', { ...base, fuel: 16.5, mode: (l) => ((l > stopLap - 3 && l <= stopLap) || l > RHEIN.laps - 3 ? 2 : 1) }],
-      ['push 2 laps after stop + last 3', { ...base, mode: (l) => ((l > stopLap && l <= stopLap + 2) || l > RHEIN.laps - 3 ? 2 : 1) }],
-      ['push on fresh tyres (first 3 of each stint)', { ...base, mode: (l) => (l <= 3 || (l > stopLap && l <= stopLap + 3) ? 2 : 1) }],
+      ['push last 3 laps', { ...base, mode: (l) => (l > RHEIN.laps - 3 ? 2 : 1) }],
+      ['push last 3 laps of each stint', { ...base, mode: endOfStints(base) }],
+      ['push first 3 laps of each stint', { ...base, mode: (l) => (l <= 3 || (l > stopLap && l <= stopLap + 3) ? 2 : 1) }],
+      ['push all race (same stop)', { ...base, mode: () => 2 }],
     ];
-    // pushing wears tyres faster: also try moving the stop
-    const pushStints: Plan[] = [];
-    for (let l = 4; l <= RHEIN.laps - 4; l++) {
-      pushStints.push({ start: base.start, stops: [{ lap: l, tyre: base.stops[0].tyre }], fuel: 16.5, mode: () => 2 });
-    }
-    const bestPushStint = pushStints.map((p) => ({ p, t: avgTime(sc, p, SEARCH_N) })).sort((a, b) => a.t - b.t)[0].p;
-    pushPolicies.push([`push+conserve with stop moved (${planName(bestPushStint)}), fuel 105 %`, bestPushStint]);
+    // pushing wears tyres faster: also find the best stop plan when pushing all race
+    const pushAll = bestPlans(RHEIN, () => 2);
+    const pushAllBest = pushAll.one.t <= pushAll.two.t ? pushAll.one.p : pushAll.two.p;
+    pushPolicies.push([`push all race, best plan for it (${planName(pushAllBest)})`, pushAllBest]);
+    const best2 = bestPlans(RHEIN);
+    pushPolicies.push([`2-stop (${planName(best2.two.p)}) + push last 3 of each stint`, { ...best2.two.p, mode: endOfStints(best2.two.p) }]);
     let bestPush = Infinity;
     for (const [name, plan] of pushPolicies) {
       const r = compare(sc, base, plan);
       bestPush = Math.min(bestPush, r.diff);
-      out(`  ${name.padEnd(58)}: ${f1(r.diff)} s${r.dnfB ? ` (DNF ${Math.round(r.dnfB * 100)} %)` : ''}`);
+      out(`  ${name.padEnd(52)}: ${f1(r.diff)} s`);
     }
     verdict('Good use of Push gains 5–8 s', bestPush <= -5 && bestPush >= -8.5, `best policy ${f1(bestPush)} s`);
     out();
@@ -362,24 +343,7 @@ function main() {
     out(`  Alone: stop under SC (lap 7) vs normal stop after it (lap 11): SC stop is ${scSolo.diff.toFixed(1)} s faster`);
     out(`  (same two plans without any safety car: ${f1(noScSame.diff)} s, so the SC itself is worth ${(scSolo.diff - noScSame.diff).toFixed(1)} s)`);
     out(`  In the field (start P6): SC stop is ${scField.diff.toFixed(1)} s faster`);
-    verdict('A stop under the safety car gains about 10 s', scSolo.diff - noScSame.diff >= 8 && scSolo.diff - noScSame.diff <= 13, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field`);
-    out();
-  }
-
-  if (want('fuel')) {
-    /* --- fuel --- */
-    out(`## Starting light on fuel (Rheinring, plan ${planName(base)}, default fuel ${RHEIN.laps + 0.5} laps)`);
-    const fuelFor = (share: number) => Math.round(RHEIN.laps * share * 2) / 2;
-    const light5 = { ...base, fuel: fuelFor(0.95) };
-    const light10 = { ...base, fuel: fuelFor(0.9) };
-    const f5 = compare(sc, base, light5);
-    const f10 = compare(sc, base, light10);
-    const f5sc = compare({ track: RHEIN, safetyCar: { lap: 8, laps: 3 } }, base, light5);
-    const f10sc = compare({ track: RHEIN, safetyCar: { lap: 8, laps: 3 } }, base, light10);
-    const f5field = compare({ track: RHEIN, field: true }, base, light5);
-    out(`  5 % light (${light5.fuel} laps):  ${f1(f5.diff)} s alone, ${f1(f5field.diff)} s in the field, ${f1(f5sc.diff)} s with a safety car`);
-    out(`  10 % light (${light10.fuel} laps): ${f1(f10.diff)} s alone, ${f1(f10sc.diff)} s with a safety car`);
-    verdict('5 % light ≈ break-even, pays off with a safety car', Math.abs(f5.diff) <= 2 && f5sc.diff < f5.diff, `${f1(f5.diff)} s normal, ${f1(f5sc.diff)} s with SC`);
+    verdict('A stop under the safety car gains clearly (≈ half a normal stop alone, more in the field)', scSolo.diff - noScSame.diff >= 0.35 * RHEIN.pitLoss && scField.diff > scSolo.diff - noScSame.diff, `${(scSolo.diff - noScSame.diff).toFixed(1)} s alone, ${scField.diff.toFixed(1)} s in the field (normal stop costs ${RHEIN.pitLoss} s)`);
     out();
   }
 

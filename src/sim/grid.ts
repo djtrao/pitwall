@@ -18,24 +18,6 @@ export interface FieldOptions {
   tuning: Tuning;
 }
 
-/** Start fuel options in laps: 90 % – 105 % of race distance in 0.5-lap steps. */
-export function fuelOptions(track: Track, tuning: Tuning): number[] {
-  const lo = Math.ceil(track.laps * tuning.fuel.min * 2) / 2;
-  const hi = Math.floor(track.laps * tuning.fuel.max * 2) / 2;
-  const out: number[] = [];
-  for (let f = lo; f <= hi + 1e-9; f += 0.5) out.push(f);
-  return out;
-}
-
-export const defaultFuel = (track: Track) => track.laps + 0.5;
-
-/** AI fuel choice: around race distance with some variation (they push at the end). */
-export function aiFuel(track: Track, rng: Rng, tuning: Tuning): number {
-  const opts = fuelOptions(track, tuning);
-  const want = track.laps + 0.5 + Math.round(range(rng, -0.5, 1.5)) * 0.5;
-  return opts.reduce((best, f) => (Math.abs(f - want) < Math.abs(best - want) ? f : best), opts[0]);
-}
-
 /** AI start tyre: rain tyres if quali was wet, otherwise mostly Soft, Medium on high-wear tracks. */
 export function aiStartTyre(track: Track, wx: Weather, rng: Rng): Tyre {
   if (wx.quali * 100 > 30) return 'W';
@@ -65,7 +47,6 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
         carPace: 0,
         driverPace: 0,
         startTyre: wx.quali * 100 > 30 ? 'W' : 'S',
-        fuel: defaultFuel(opts.track),
       });
     });
   }
@@ -86,7 +67,6 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
         carPace: team.pace,
         driverPace: range(rng, -0.15, 0.15),
         startTyre: aiStartTyre(opts.track, wx, rng),
-        fuel: aiFuel(opts.track, rng, opts.tuning),
         ai,
       });
     });
@@ -96,7 +76,7 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
 
 /**
  * Simple qualifying stand-in until the Hot Lap mini-game exists (milestone 4):
- * a lap time from the race model with light fuel, plus `hotLapBonus` per car (negative = better).
+ * a lap time from the race model, plus `hotLapBonus` per car (negative = better).
  * Returns the cars sorted into grid order.
  */
 export function quickQualifying(

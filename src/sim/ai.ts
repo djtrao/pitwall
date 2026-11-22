@@ -80,25 +80,21 @@ export function aiOnLap(race: RaceState, c: Car, done: number): void {
   }
 
   // ---------- driving mode ----------
-  // Fuel budget: spare laps of fuel at Normal pace. Push costs 0.15 laps per lap more.
-  const spare = c.fuel - left * t.modes[NORMAL].fuel;
-  const extra = (m: Mode) => t.modes[m].fuel - t.modes[NORMAL].fuel;
-  const endLaps = Math.min(3, left);
-  const reserveForEnd = endLaps * extra(PUSH);
+  // Push and Max Attack only cost tyre wear and mistake risk.
   let mode: Mode = NORMAL;
   const { ahead, behind } = gapAheadBehind(race, c);
-  if (left <= 3 && spare >= left * extra(PUSH) + 0.05) mode = PUSH;
-  else if ((ahead < 1.0 || behind < 0.8) && spare - extra(PUSH) >= reserveForEnd + 0.05) mode = PUSH;
-  if (mode !== NORMAL || left <= 3) {
-    // rare Max Attack: out-lap on fresh tyres for aggressive drivers, or the last lap
-    const maxOk = spare - extra(MAX_ATTACK) >= (left - 1 <= 3 ? (left - 1) * extra(PUSH) : reserveForEnd) + 0.05;
-    if (maxOk && ((c.tyreLaps === 0 && c.stops > 0 && c.ai.aggression > 0.8) || (left === 1 && c.ai.aggression > 0.6))) mode = MAX_ATTACK;
-  }
+  const willStop = c.pitPlan !== null;
+  const r = wearPerLap(c.tyre, NORMAL, w, track, t, false);
+  if (left <= 3) mode = PUSH;
+  else if (ahead < 1.0 || behind < 0.8) mode = PUSH;
+  // rare Max Attack: last lap for aggressive drivers
+  if (left === 1 && c.ai.aggression > 0.6) mode = MAX_ATTACK;
   // tyres nearly dead and far from the finish: look after them
-  if (c.cond < t.cliffAt + 0.1 && left > 2 && !c.pitPlan && mode > NORMAL) mode = NORMAL;
+  if (c.cond < t.cliffAt + 0.1 && left > 2 && !willStop && mode > NORMAL) mode = NORMAL;
+  // nursing the tyres to the finish instead of stopping
+  const endCond = c.cond - r * left;
+  if (!willStop && tyreRuleOk(c.usedTyres) && left > 3 && endCond < t.cliffAt && endCond > t.cliffAt - 0.12) mode = CONSERVE;
   if (sc) mode = NORMAL;
-  // fuel saving: only as much as needed (late, a safety car may still help)
-  if (spare < 0 && c.fuel - t.modes[NORMAL].fuel - (left - 1) * t.modes[CONSERVE].fuel < 0.1) mode = CONSERVE;
   c.mode = mode;
 }
 
