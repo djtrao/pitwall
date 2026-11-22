@@ -24,7 +24,7 @@ Build "Pit Wall", a Formula 1 team-manager game for phones. 1 to 4 players each 
 
 - **Team setup:** each player names their team, picks a team colour, and names two drivers with car numbers (2 to 99, unique on the grid). Remember this on the phone.
 - **Grid:** always 12 cars = 6 teams with 2 drivers each. Human teams first, AI teams fill the rest. Each player controls both of their drivers.
-- **Fairness:** all human teams have exactly the same car speed. AI teams range from 0.0 to 0.6 s per lap slower or faster around the human level (one AI team clearly faster, one clearly slower). Use fictional team and driver names only.
+- **Fairness:** all human teams have exactly the same car speed. AI teams range from 0.0 to 0.6 s per lap slower or faster around the human level (one or two clearly faster teams, one clearly slower). **AI teams use the real current F1 teams, drivers, car numbers and (approximate) team colours** (decided after milestone 6); their speed follows the current championship standings (team pace) and teammate comparison (driver skill). Each race / season picks 5 of the 11 teams at random.
 - **Season:** the host picks 3, 5 or 8 races. Each round: Track briefing → Hot Lap qualifying → Race → Results and championship standings.
 - **Points:** 25, 18, 15, 12, 10, 8, 6, 4, 2, 1 for places 1 to 10. Drivers' and teams' championships.
 
@@ -225,7 +225,7 @@ Tune the numbers with the headless balance runner until these hold. Report the s
 - Fuel: no refuelling (banned in F1) and no fuel management.
 - Boost / ERS button (maybe later).
 - Money, sponsors, staff, contracts, driver training.
-- Real team names, driver names, logos or real track names.
+- Logos or real track names (real team and driver names are used for the AI, see section 3).
 
 ## 12. Build order
 

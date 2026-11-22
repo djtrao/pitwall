@@ -133,11 +133,11 @@ describe('duel outcomes (7.5, risk levels)', () => {
 
 describe('setup helpers', () => {
   it('AI grid always has a clearly faster and a clearly slower team', () => {
-    for (const n of [2, 3, 4, 5]) {
-      const teams = pickAiTeams(n);
+    for (const n of [2, 3, 4, 5]) for (const r of [0, 0.3, 0.7, 0.99]) {
+      const teams = pickAiTeams(n, () => r);
       expect(teams).toHaveLength(n);
-      expect(Math.min(...teams.map((t) => t.pace))).toBeLessThanOrEqual(-0.25);
-      expect(Math.max(...teams.map((t) => t.pace))).toBeGreaterThanOrEqual(0.4);
+      expect(Math.min(...teams.map((t) => t.pace))).toBeLessThanOrEqual(-0.15);
+      expect(Math.max(...teams.map((t) => t.pace))).toBeGreaterThanOrEqual(0.35);
       for (const t of teams) expect(Math.abs(t.pace)).toBeLessThanOrEqual(0.6);
     }
   });

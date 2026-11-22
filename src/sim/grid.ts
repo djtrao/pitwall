@@ -50,7 +50,7 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
       });
     });
   }
-  for (const team of pickAiTeams(6 - opts.humans.length)) {
+  for (const team of pickAiTeams(6 - opts.humans.length, () => rand(rng))) {
     team.drivers.forEach((d, i) => {
       let num = d.num;
       while (taken.has(num)) num = 2 + ((num + 9) % 98);
@@ -65,7 +65,8 @@ export function buildField(opts: FieldOptions, wx: Weather): CarSetup[] {
         color: team.color,
         human: false,
         carPace: team.pace,
-        driverPace: range(rng, -0.15, 0.15),
+        // the driver's own skill plus a little day-to-day form
+        driverPace: d.skill + range(rng, -0.04, 0.04),
         startTyre: aiStartTyre(opts.track, wx, rng),
         ai,
       });
