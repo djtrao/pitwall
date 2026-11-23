@@ -345,3 +345,13 @@ label { display: block; font-size: 13px; color: var(--mut); margin: 8px 0 3px; }
 
 .penwhy { font-size: 12px; color: #ffb3b3; font-weight: 600; white-space: normal; margin-top: 2px; }
 .r-tower .pen { font-size: 0.75em; background: #5a1d1d; color: #ffb3b3; border-radius: 4px; padding: 0 3px; margin-left: 3px; }
+
+/* ================= Kenney look =================
+   buttons with a "depth" edge underneath (like the Kenney UI pack), white icons */
+.big { border-radius: 12px; box-shadow: inset 0 -5px 0 rgba(0,0,0,0.28); padding-bottom: 17px; text-shadow: 0 2px 0 rgba(0,0,0,0.25); }
+.big:active { box-shadow: inset 0 -2px 0 rgba(0,0,0,0.28); transform: translateY(2px); }
+button { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.25); }
+button.on { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.15); }
+button:active { box-shadow: inset 0 -1px 0 rgba(0,0,0,0.25); }
+.ic { width: 22px; height: 22px; display: block; margin: auto; pointer-events: none; }
+button.on .ic { filter: invert(1); }

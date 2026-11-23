@@ -1,6 +1,7 @@
 import { num, t, type StringKey } from '../i18n';
 import { crossoverWetness, forecastBlocks, lapsToCliff, qualiForecast, type Track, type Tuning, type Tyre, type Weather } from '../sim';
 import { $, esc, trackDesc, tyreIcon, tyreName } from '../ui/common';
+import { whenReady } from '../ui/assets';
 import { TrackView } from '../ui/trackview';
 
 /** Level with a colour and an icon (not colour alone). */
@@ -77,8 +78,10 @@ export function briefingScreen(
   if (onBack) $('back').onclick = onBack;
   $('bgo').onclick = onGo;
   const tv = new TrackView($('bcv') as HTMLCanvasElement, track);
-  requestAnimationFrame(() => {
+  const draw = () => {
     tv.fit();
     tv.drawTrack(weather.quali * 100);
-  });
+  };
+  requestAnimationFrame(draw);
+  void whenReady().then(() => requestAnimationFrame(draw));
 }

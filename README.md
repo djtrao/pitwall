@@ -74,3 +74,7 @@ npm run dev
 - `npm run balance` simulates hundreds of races and prints the section 10 statistics (`--quick` for a fast run, `--only stops,push` for some sections, `--tuning '{"pitLossScale":0.5}'` to try other numbers).
 - `npm run dev` starts the game on your computer (open the address it prints).
 - `npm run server` starts the multiplayer server on your computer (port 8787).
+
+## Grafik und Töne
+
+Autos, Streckendeko, Symbole und Soundeffekte stammen aus den Packs von **Kenney** (www.kenney.nl, Lizenz CC0 – frei nutzbar). Sie liegen in `public/kenney/`.
