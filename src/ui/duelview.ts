@@ -144,14 +144,14 @@ export class DuelView {
   }
 
   private roadWidth(): number {
-    return this.box().bw * 0.12;
+    return this.box().bw * 0.17;
   }
 
   /** Which side the attack goes: inside of the corner, left on a straight, first bend's outside in a chicane. */
   private get attackSide(): number {
-    if (this.scene === 'corner') return 0.5; // right-hand bend: inside is right of travel
-    if (this.scene === 'chicane') return -0.48;
-    return -0.5;
+    if (this.scene === 'corner') return 0.27; // right-hand bend: inside is right of travel
+    if (this.scene === 'chicane') return -0.27;
+    return -0.27;
   }
 
   /**
@@ -184,9 +184,14 @@ export class DuelView {
     const o = this.outcome;
     if (o === 'pass') {
       rel = lerp(rel, 0.11, seg(t, 0.35, 0.85));
-      latA = this.scene === 'chicane' ? lerp(latA, -side, seg(t, 0.35, 0.6)) : lerp(latA, 0, seg(t, 0.7, 1));
-      latD = lerp(latD, -side * 0.4, seg(t, 0.4, 0.7));
+      if (this.scene === 'corner') {
+        // dive down the inside and cut over the kerb at the apex, then back to the racing line
+        latA = lerp(latA, side * 1.55, seg(t, 0.3, 0.5));
+        latA = lerp(latA, 0, seg(t, 0.62, 1));
+      } else latA = this.scene === 'chicane' ? lerp(latA, -side, seg(t, 0.35, 0.6)) : lerp(latA, 0, seg(t, 0.7, 1));
+      latD = lerp(latD, -side * 0.9, seg(t, 0.4, 0.7)); // the defender is pushed wide
     } else if (o === 'fail') {
+      if (this.scene === 'corner') latA = lerp(latA, side * 1.4, seg(t, 0.3, 0.5)); // tries the cut ...
       rel = lerp(rel, -0.035, seg(t, 0.35, 0.5));
       rel = lerp(rel, -0.12, seg(t, 0.5, 0.9));
       latA = this.scene === 'chicane' ? lerp(latA, -side * 0.8, seg(t, 0.4, 0.6)) : latA;
@@ -205,11 +210,11 @@ export class DuelView {
       rel = lerp(rel, -0.03, seg(t, 0.35, 0.5));
       const sp = seg(t, 0.48, 0.95);
       rotA = sp * Math.PI * 3;
-      latA = lerp(latA, side * 2.6, sp);
+      latA = lerp(latA, Math.sign(side) * 1.4, sp);
       rel = lerp(rel, -0.3, seg(t, 0.5, 1));
     } else if (o === 'off') {
       rel = lerp(rel, -0.02, seg(t, 0.35, 0.5));
-      latA = lerp(latA, side * 3, seg(t, 0.5, 0.85));
+      latA = lerp(latA, Math.sign(side) * 1.6, seg(t, 0.5, 0.85));
       rel = lerp(rel, -0.25, seg(t, 0.5, 1));
       rotA = Math.sin(t * 25) * 0.1 * seg(t, 0.55, 0.9);
     } else if (o === 'wait') {
@@ -335,7 +340,7 @@ export class DuelView {
 
   private drawCar(x: number, y: number, angle: number, look: CarLook): void {
     const c = this.ctx;
-    const L = this.roadWidth() * 0.95; // car length
+    const L = this.roadWidth() * 0.62; // car length: about two cars fit side by side
     const W = drawF1(c, x, y, angle, L, look.color);
     c.save();
     c.translate(x, y);
@@ -344,11 +349,11 @@ export class DuelView {
     c.fillStyle = '#fff';
     c.strokeStyle = '#000';
     c.lineWidth = 3;
-    c.font = `900 ${Math.round(L * 0.3)}px 'Titillium Web', system-ui, sans-serif`;
+    c.font = `900 ${Math.max(12, Math.round(L * 0.34))}px 'Titillium Web', system-ui, sans-serif`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.strokeText(String(look.num), 0, -W * 1.1);
-    c.fillText(String(look.num), 0, -W * 1.1);
+    c.strokeText(String(look.num), 0, -W * 1.6);
+    c.fillText(String(look.num), 0, -W * 1.6);
     c.restore();
   }
 

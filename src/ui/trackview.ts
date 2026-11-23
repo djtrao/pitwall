@@ -55,11 +55,6 @@ function buildTrack(pts: [number, number][]): [number, number][] {
   return out;
 }
 
-function luminance(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-}
-
 const frac = (d: number) => ((d % 1) + 1) % 1;
 
 export class TrackView {
@@ -75,6 +70,10 @@ export class TrackView {
   private size = 320;
   /** Smoothed sideways offsets so cars running close together are drawn side by side. */
   private lat = new Map<string, number>();
+  /** Smoothed push-back (lap share) so cars in the same lane never overlap. */
+  private gapFix = new Map<string, number>();
+  /** Length of the drawn centre line (px). */
+  private perim = 1;
   private dpr = 1;
   /** Camera: centre (px) and zoom. Follows `followId` when set. */
   private cam = { x: 160, y: 115, z: 1 };
@@ -84,7 +83,7 @@ export class TrackView {
   private labelPos: [number, number][] = [];
   private grass: CanvasPattern | null = null;
   followId: string | null = null;
-  static readonly ZOOM = 2.6;
+  static readonly ZOOM = 3;
 
   constructor(private cv: HTMLCanvasElement, private track: Track, private ratio = 0.72) {
     this.ctx = cv.getContext('2d')!;
@@ -110,7 +109,7 @@ export class TrackView {
     this.dpr = dpr;
     if (!this.followId) this.cam = { x: w / 2, y: h / 2, z: 1 };
     // largest box with the track's own proportions that fits, centred
-    const m = Math.max(16, Math.min(w, h) * 0.07);
+    const m = Math.max(12, Math.min(w, h) * 0.05);
     const dw = Math.min(w - 2 * m, (h - 2 * m) / this.ratio);
     const dh = dw * this.ratio;
     const ox = (w - dw) / 2;
@@ -125,7 +124,12 @@ export class TrackView {
     });
     const p = this.scr[0], nn = this.nrm[0];
     this.inSign = this.inside([p[0] + nn[0] * 20, p[1] + nn[1] * 20]) ? 1 : -1;
-    this.tw = Math.max(10, dw * 0.032);
+    // a wide road: two cars fit side by side, like in real F1
+    this.tw = Math.max(13, dw * 0.044);
+    this.perim = this.scr.reduce((sum, p, i) => {
+      const q = this.scr[(i + 1) % N];
+      return sum + Math.hypot(q[0] - p[0], q[1] - p[1]);
+    }, 0);
     this.placeDecos();
   }
 
@@ -347,28 +351,40 @@ export class TrackView {
     }
   }
 
-  /** A car: the Kenney sprite in the team colour, nose along `angle`, with its number on top. */
-  drawCar(x: number, y: number, color: string, label: string, highlight: boolean, alpha = 1, angle = 0): void {
+  /** Car length in px (world units: it grows with the camera zoom, like the road). */
+  private get carLen(): number {
+    return this.tw * 0.8;
+  }
+
+  /**
+   * An F1 car, nose along `angle`. The number is shown above your own cars, the safety car,
+   * and every car when the camera is zoomed in.
+   */
+  drawCar(x: number, y: number, color: string, label: string, highlight: boolean, alpha = 1, angle = 0, showLabel = highlight): void {
     const c = this.ctx;
-    const r = Math.max(8, this.size * 0.02) * this.carScale;
+    const L = this.carLen;
     c.globalAlpha = alpha;
     if (highlight) {
       c.beginPath();
-      c.arc(x, y, r * 1.55, 0, Math.PI * 2);
-      c.fillStyle = 'rgba(255,255,255,0.35)';
+      c.arc(x, y, L * 0.72, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(255,255,255,0.32)';
       c.fill();
     }
-    drawF1(c, x, y, angle, Math.max(24, this.size * 0.046) * this.carScale, color);
-    // number: white with a dark outline, readable on any team colour
-    c.font = `900 ${Math.round(r * (label.length > 2 ? 0.75 : 0.95))}px 'Titillium Web', system-ui, sans-serif`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.lineJoin = 'round';
-    c.lineWidth = Math.max(2, r * 0.28);
-    c.strokeStyle = highlight ? '#000' : 'rgba(0,0,0,0.85)';
-    c.strokeText(label, x, y + 0.5);
-    c.fillStyle = luminance(color) > 0.92 ? '#ffd200' : '#fff';
-    c.fillText(label, x, y + 0.5);
+    drawF1(c, x, y, angle, L, color);
+    if (showLabel || this.cam.z > 1.6) {
+      // number tag above the car: same size on screen whatever the zoom
+      const fs = (highlight ? 12 : 10) / this.cam.z;
+      const ty = y - L * 0.55 - fs * 0.55;
+      c.font = `900 ${fs}px 'Titillium Web', system-ui, sans-serif`;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.lineJoin = 'round';
+      c.lineWidth = 3 / this.cam.z;
+      c.strokeStyle = 'rgba(0,0,0,0.85)';
+      c.strokeText(label, x, ty);
+      c.fillStyle = highlight ? '#ffd200' : '#fff';
+      c.fillText(label, x, ty);
+    }
     c.globalAlpha = 1;
   }
 
@@ -420,21 +436,51 @@ export class TrackView {
   drawRace(race: RaceState, dist: (c: Car) => number, mine: (c: Car) => boolean): void {
     const c = this.ctx;
     const cars = race.cars.filter((x) => x.status !== 'dnf').sort((a, b) => dist(a) - dist(b));
-    // side-by-side offsets for cars running nose to tail
+    // Lanes: at most two cars side by side. A car closing in moves to the inside of the next bend
+    // (cutting the corner to attack), the car in front keeps the outside. Cars in the same lane
+    // are pushed back a little so they never overlap.
+    const cf = this.carLen / this.perim; // one car length as a share of the lap
+    const lane = new Map<string, number>();
+    const vis = new Map<string, number>();
     const order = [...cars].reverse();
     for (let i = 0; i < order.length; i++) {
       const car = order[i];
-      let target = 0;
-      if (i > 0 && car.status === 'running' && order[i - 1].status === 'running') {
-        const gap = dist(order[i - 1]) - dist(car);
-        if (gap < 0.006) target = (this.lat.get(order[i - 1].id) ?? 0) > 0 ? -this.tw * 0.45 : this.tw * 0.45;
+      const d = dist(car);
+      let ln = 0;
+      let v = d;
+      if (car.status === 'running') {
+        let ahead: Car | undefined;
+        for (let j = i - 1; j >= 0 && !ahead; j--) if (order[j].status === 'running') ahead = order[j];
+        if (ahead) {
+          const gap = vis.get(ahead.id)! - d;
+          if (gap < cf * 2.6) {
+            const la = lane.get(ahead.id)!;
+            ln = la !== 0 ? -la : -this.outside(d + cf * 3);
+            if (la === 0 && gap < cf * 1.6) lane.set(ahead.id, -ln);
+          }
+        }
+        for (let j = i - 1; j >= 0 && j >= i - 4; j--) {
+          const o = order[j];
+          if (o.status !== 'running') continue;
+          const lo = lane.get(o.id)!;
+          if (lo === 0 || ln === 0 || lo === ln) v = Math.min(v, vis.get(o.id)! - cf * 1.25);
+        }
       }
-      const cur = this.lat.get(car.id) ?? 0;
-      this.lat.set(car.id, cur + (target - cur) * 0.15);
+      lane.set(car.id, ln);
+      vis.set(car.id, v);
     }
+    for (const car of cars) {
+      const target = lane.get(car.id)! * this.tw * 0.25;
+      const cur = this.lat.get(car.id) ?? 0;
+      this.lat.set(car.id, cur + (target - cur) * 0.2);
+      const fix = vis.get(car.id)! - dist(car);
+      const g = this.gapFix.get(car.id) ?? 0;
+      this.gapFix.set(car.id, g + (fix - g) * (fix < g ? 0.5 : 0.15));
+    }
+    const shown = (car: Car) => dist(car) + (this.gapFix.get(car.id) ?? 0);
     const pos = new Map<string, [number, number]>();
     for (const car of cars) {
-      const p = this.carPosition(car, dist(car));
+      const p = this.carPosition(car, car.status === 'pit' ? dist(car) : shown(car));
       pos.set(car.id, this.xy(p.f, p.lat !== 0 ? p.lat : this.lat.get(car.id) ?? 0));
     }
 
@@ -454,21 +500,24 @@ export class TrackView {
     this.drawTrack(race.wetness, true, true);
     for (const car of cars) {
       const [x, y] = pos.get(car.id)!;
-      this.drawCar(x, y, car.color, String(car.num), mine(car), car.status === 'finished' ? 0.45 : 1, this.heading(dist(car)));
+      const f = car.status === 'pit' ? dist(car) : shown(car);
+      // nose turned a little towards the lane it is moving to
+      const steer = car.status === 'running' ? ((lane.get(car.id)! * this.tw * 0.25 - (this.lat.get(car.id) ?? 0)) / this.tw) * 0.9 : 0;
+      this.drawCar(x, y, car.color, String(car.num), mine(car), car.status === 'finished' ? 0.45 : 1, this.heading(f) + steer);
     }
     if (race.safetyCar.active) {
       const lead = cars.filter((x) => x.status === 'running').reduce((m, x) => Math.max(m, dist(x)), -Infinity);
       if (lead > -Infinity) {
         const [x, y] = this.xy(lead + 0.018, 0);
-        this.drawCar(x, y, '#ffb000', 'SC', false, 1, this.heading(lead + 0.018));
+        this.drawCar(x, y, '#ffb000', 'SC', false, 1, this.heading(lead + 0.018), true);
       }
     }
     if (followed) {
       // ring around the followed car
       c.beginPath();
-      c.arc(followed[0], followed[1], Math.max(8, this.size * 0.02) * this.carScale * 1.9, 0, Math.PI * 2);
+      c.arc(followed[0], followed[1], this.carLen * 0.9, 0, Math.PI * 2);
       c.strokeStyle = '#ffd200';
-      c.lineWidth = 2.5 * this.carScale;
+      c.lineWidth = 2.5 / this.cam.z;
       c.stroke();
     }
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
