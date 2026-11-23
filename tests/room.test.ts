@@ -59,7 +59,7 @@ describe('multiplayer room', () => {
     // both play their laps at the same time
     const [ta, tb] = room.players.map((p) => p.teamId);
     for (const [pid, tid] of [['a', ta], ['b', tb]] as const) {
-      for (const run of [0, 1]) for (const n of [1, 2]) {
+      for (const run of [0]) for (const n of [1, 2]) {
         room.message(pid, { t: 'qualiRun', run: { carId: `${tid}-${n}`, run, tyre: 'S', corners: [], time: 70 + n + run } });
       }
     }

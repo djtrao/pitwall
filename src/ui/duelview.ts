@@ -6,6 +6,7 @@
  */
 import type { DuelOutcome } from '../sim';
 import { img } from './assets';
+import { drawF1 } from './f1car';
 
 export type DuelScene = 'straight' | 'corner' | 'chicane';
 
@@ -335,48 +336,10 @@ export class DuelView {
   private drawCar(x: number, y: number, angle: number, look: CarLook): void {
     const c = this.ctx;
     const L = this.roadWidth() * 0.95; // car length
-    const W = L * 0.42;
+    const W = drawF1(c, x, y, angle, L, look.color);
     c.save();
     c.translate(x, y);
     c.rotate(angle);
-    // shadow
-    c.fillStyle = 'rgba(0,0,0,0.35)';
-    c.beginPath();
-    c.ellipse(2, 3, L * 0.55, W * 0.6, 0, 0, Math.PI * 2);
-    c.fill();
-    // wheels
-    c.fillStyle = '#111';
-    const wl = L * 0.18;
-    const ww = W * 0.32;
-    for (const [wx, wy] of [[L * 0.28, -W * 0.62], [L * 0.28, W * 0.62 - ww], [-L * 0.32, -W * 0.66], [-L * 0.32, W * 0.66 - ww]] as Pt[]) {
-      c.fillRect(wx - wl / 2, wy, wl, ww);
-    }
-    // body: nose, sidepods, rear
-    c.fillStyle = look.color;
-    c.beginPath();
-    c.moveTo(L * 0.52, 0);
-    c.lineTo(L * 0.2, -W * 0.16);
-    c.lineTo(L * 0.05, -W * 0.42);
-    c.lineTo(-L * 0.38, -W * 0.38);
-    c.lineTo(-L * 0.45, -W * 0.18);
-    c.lineTo(-L * 0.45, W * 0.18);
-    c.lineTo(-L * 0.38, W * 0.38);
-    c.lineTo(L * 0.05, W * 0.42);
-    c.lineTo(L * 0.2, W * 0.16);
-    c.closePath();
-    c.fill();
-    c.strokeStyle = 'rgba(0,0,0,0.6)';
-    c.lineWidth = 1;
-    c.stroke();
-    // wings
-    c.fillStyle = '#222';
-    c.fillRect(L * 0.44, -W * 0.5, L * 0.08, W);
-    c.fillRect(-L * 0.55, -W * 0.45, L * 0.1, W * 0.9);
-    // cockpit + number
-    c.fillStyle = '#111';
-    c.beginPath();
-    c.ellipse(-L * 0.05, 0, L * 0.09, W * 0.14, 0, 0, Math.PI * 2);
-    c.fill();
     c.rotate(-angle);
     c.fillStyle = '#fff';
     c.strokeStyle = '#000';

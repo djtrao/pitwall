@@ -15,6 +15,8 @@ import {
   makeRng,
   makeTuning,
   QUALI,
+  qualiPoints,
+  TRACKS,
   zonesFor,
   type QualiRun,
 } from '../src/sim';
@@ -77,26 +79,37 @@ describe('Hot Lap timing is a real challenge', () => {
 describe('Hot Lap corner results', () => {
   it('follow the table in the spec', () => {
     expect(cornerResult(0, 'green', 0.9).delta).toBe(0);
-    expect(cornerResult(0, 'yellow', 0.9).delta).toBe(0.3);
-    expect(cornerResult(0, 'miss', 0.9).delta).toBe(0.5);
-    expect(cornerResult(1, 'green', 0.9).delta).toBe(-0.25);
-    expect(cornerResult(1, 'miss', 0.9).delta).toBe(1.2);
-    expect(cornerResult(2, 'green', 0.9).delta).toBe(-0.5);
-    expect(cornerResult(2, 'yellow', 0.9).delta).toBe(0.4);
+    expect(cornerResult(0, 'yellow', 0.9).delta).toBe(0.2);
+    expect(cornerResult(0, 'miss', 0.9).delta).toBe(0.35);
+    expect(cornerResult(1, 'green', 0.9).delta).toBe(-0.17);
+    expect(cornerResult(1, 'miss', 0.9).delta).toBe(0.8);
+    expect(cornerResult(2, 'green', 0.9).delta).toBe(-0.33);
+    expect(cornerResult(2, 'yellow', 0.9).delta).toBe(0.3);
   });
-  it('a missed Send it! deletes the lap half of the time, otherwise costs 2 s', () => {
+  it('a missed Send it! deletes the lap 30 % of the time, otherwise costs 1.3 s', () => {
     expect(cornerResult(2, 'miss', 0.2).deleted).toBe(true);
+    expect(cornerResult(2, 'miss', 0.35).deleted).toBe(false);
     const r = cornerResult(2, 'miss', 0.8);
     expect(r.deleted).toBe(false);
-    expect(r.delta).toBe(2);
+    expect(r.delta).toBe(1.3);
   });
-  it('a perfect lap is about 1.5 s faster than an all-Safe lap (balance target)', () => {
+  it('one lap has 6 braking points in lap order: the 3 key corners and 3 more bends', () => {
+    for (const tr of TRACKS) {
+      const pts = qualiPoints(tr);
+      expect(pts).toHaveLength(6);
+      for (const c of tr.corners) expect(pts).toContain(c);
+      for (let i = 1; i < pts.length; i++) expect(pts[i].at - pts[i - 1].at).toBeGreaterThan(0.07);
+      expect(pts[0].at).toBeGreaterThan(0.08);
+      expect(pts[5].at).toBeLessThan(0.95);
+    }
+  });
+  it('a perfect lap is about 2 s faster than an all-Safe lap (balance target)', () => {
     const base = baseHotLap(humanCar(), 'S', 0, RHEIN, T, false);
-    const perfect = [0, 1, 2].map(() => cornerResult(2, 'green', 1));
-    const safe = [0, 1, 2].map(() => cornerResult(0, 'green', 1));
+    const perfect = qualiPoints(RHEIN).map(() => cornerResult(2, 'green', 1));
+    const safe = qualiPoints(RHEIN).map(() => cornerResult(0, 'green', 1));
     const tp = hotLapTime(base, perfect, makeRng(1))!;
     const ts = hotLapTime(base, safe, makeRng(1))!;
-    expect(ts - tp).toBeCloseTo(1.5, 5);
+    expect(ts - tp).toBeCloseTo(1.98, 5);
     expect(hotLapTime(base, [cornerResult(2, 'miss', 0)], makeRng(1))).toBeNull();
   });
   it('a second run on the same compound is 0.2 s slower', () => {
@@ -109,11 +122,12 @@ describe('qualifying session', () => {
     { humans: [{ id: 'me', name: 'Me', color: '#ff0', drivers: [{ name: 'A', num: 7 }, { name: 'B', num: 27 }] }], seed: 3, track: RHEIN, tuning: T },
     dryWeather(RHEIN.laps),
   );
-  it('AI drivers each do 2 runs, mostly valid, with sensible times', () => {
+  it('AI drivers each do 1 lap over all 6 braking points, mostly valid, with sensible times', () => {
     const runs = aiSession(field, RHEIN, dryWeather(RHEIN.laps), T, 5);
-    expect(runs).toHaveLength(20);
+    expect(runs).toHaveLength(10);
+    for (const r of runs) if (r.time !== null) expect(r.corners).toHaveLength(6);
     const valid = runs.filter((r) => r.time !== null);
-    expect(valid.length).toBeGreaterThan(12);
+    expect(valid.length).toBeGreaterThan(6);
     for (const r of valid) {
       expect(r.time!).toBeGreaterThan(RHEIN.base - 2.5);
       expect(r.time!).toBeLessThan(RHEIN.base + 6);

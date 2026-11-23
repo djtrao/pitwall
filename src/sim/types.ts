@@ -31,6 +31,8 @@ export interface Track {
   rainChance: number;
   safetyCarChance: number;
   corners: [KeyCorner, KeyCorner, KeyCorner];
+  /** Three more bends: braking points in qualifying (6 per lap together with the key corners). */
+  bends: [KeyCorner, KeyCorner, KeyCorner];
   /** Closed outline, points in 0..1 (used by the UI). */
   shape: [number, number][];
 }

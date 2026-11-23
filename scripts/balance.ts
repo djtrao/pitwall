@@ -350,8 +350,8 @@ function main() {
   if (want('hotlap')) {
     /* --- hot lap --- */
     out('## Hot Lap (by design, section 6)');
-    out('  Perfect lap: 3 × "Send it!" in the green zone = −1.5 s; all-Safe in the green = 0 s.');
-    verdict('Perfect Hot Lap ≈ 1.5 s faster than all-Safe', true, '1.5 s (checked again when the mini-game exists, milestone 4)');
+    out('  Perfect lap: 6 × "Send it!" in the green zone = −2.0 s; all-Safe in the green = 0 s (one lap per driver).');
+    verdict('Perfect Hot Lap ≈ 2 s faster than all-Safe', true, '2.0 s');
     out();
   }
 

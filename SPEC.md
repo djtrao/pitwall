@@ -41,7 +41,8 @@ Create 8 fictional tracks, each with its own drawn shape (closed spline, start/f
 | Pit stop time loss | 18 to 25 s | cost of a pit stop (pit lane + an average 2.6 s standing time) |
 | Rain chance | 0.2 to 0.75 | chance of rain during the event (showers come and go) |
 | Safety car chance | 0.2 to 0.6 | chance of a safety car per race |
-| 3 key corners | names + position on the lap | used in Hot Lap qualifying |
+| 3 key corners | names + position on the lap | braking points in Hot Lap qualifying, kerbs and labels on the map |
+| 3 more bends | names + position on the lap | extra braking points in Hot Lap qualifying |
 
 Mix the tracks: a street circuit (hard overtaking, low wear, high safety car chance), a fast forest track (high wear, rainy), an all-rounder, and so on.
 
@@ -57,20 +58,20 @@ This is the "study the track" part. Show:
 
 ## 6. Hot Lap qualifying
 
-Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** of one lap. The best lap counts for the grid. Each lap takes about 20 seconds to play.
+Qualifying is a short mini-game, not a simulation. Each driver gets **one flying lap** with **6 braking points**: the 3 key corners plus 3 more bends (`bends` in the track data). That lap counts for the grid. Each lap takes about 30–40 seconds to play.
 
 **Flow of one run**
 
-1. Choose a tyre (Soft, Medium, Hard, Rain). A second run on the same compound as the first gets +0.2 s (used tyres).
-2. The car drives around the track view. Before each of the 3 key corners, the player chooses how hard to go (3 seconds to choose, default Safe).
+1. Choose a tyre (Soft, Medium, Hard, Rain).
+2. The car drives around the track view. Before each of the 6 braking points, the player chooses how hard to go (3 seconds to choose, default Safe).
 3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. More risk also means a faster marker (braking later): Safe ×1, Attack ×1.25, Send it! ×1.6. Send it! leaves only about 0.05 s (Pro) to 0.08 s (Rookie).
 4. After the lap: lap time, position on the provisional leaderboard, and a short comment ("Great lap!", "Lap deleted – track limits").
 
 | Choice | Green zone width | Hit green | Hit yellow | Miss |
 | --- | --- | --- | --- | --- |
-| Safe | 40% of bar | 0 s | +0.3 s | +0.5 s |
-| Attack | 25% of bar | −0.25 s | +0.3 s | +1.2 s |
-| Send it! | 8% of bar | −0.5 s | +0.4 s | 50%: lap deleted, else +2.0 s |
+| Safe | 40% of bar | 0 s | +0.2 s | +0.35 s |
+| Attack | 25% of bar | −0.17 s | +0.2 s | +0.8 s |
+| Send it! | 8% of bar | −0.33 s | +0.3 s | 30%: lap deleted, else +1.3 s |
 
 **Modifiers**
 
@@ -81,10 +82,10 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **2 runs** o
 
 **Order and multiplayer**
 
-- Each player plays driver 1 run 1, driver 2 run 1, then both second runs. In multiplayer, all players play at the same time on their own phones. A live leaderboard updates as runs finish. The session ends when everyone is done (time limit 4 minutes).
+- Each player plays driver 1's lap, then driver 2's lap. In multiplayer, all players play at the same time on their own phones. A live leaderboard updates as runs finish. The session ends when everyone is done (time limit 4 minutes).
 - The timing tap is measured on the phone and only the result is sent to the server, so network delay does not matter.
 - AI drivers get simulated results with their own risk style (some always Safe, some gamble).
-- Grid = best lap order. **Each driver starts the race on the tyre of their best lap.**
+- Grid = lap time order (a deleted lap starts at the back). **Each driver starts the race on the tyre of their qualifying lap.**
 
 ## 7. Race model
 
@@ -216,7 +217,7 @@ Tune the numbers with the headless balance runner until these hold. Report the s
 - Good use of Push over a race gains 5 to 8 s compared with Normal.
 - A good rain call (switching within one lap of the crossover) beats a late one (2 of the long laps late) by 10 to 20 s.
 - A pit stop under the safety car gains clearly compared with a normal stop (about 5–10 s alone), but it is no sure thing because nobody knows when the safety car comes in.
-- A perfect Hot Lap is about 1.5 s faster than an all-Safe lap, which is worth several grid places.
+- A perfect Hot Lap (6 × Send it! in the green) is about 2 s faster than an all-Safe lap, which is worth several grid places.
 - A well-played human team can win about 1 race in 3. A badly played team finishes midfield or lower.
 
 ## 11. Not in scope

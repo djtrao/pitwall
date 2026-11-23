@@ -4,7 +4,8 @@
  * cars as coloured dots with their numbers, safety car, rain.
  */
 import { DEFAULT_TUNING, makeRng, rand, type Car, type RaceState, type Track } from '../sim';
-import { carSprite, img } from './assets';
+import { img } from './assets';
+import { drawF1 } from './f1car';
 
 /** A sprite placed next to the track (tribune, tent, tree, tyre stack ...). */
 interface Deco {
@@ -314,7 +315,7 @@ export class TrackView {
     c.lineWidth = this.tw;
     c.stroke();
     // kerbs on both sides of every key corner
-    for (const corner of this.track.corners) {
+    for (const corner of [...this.track.corners, ...this.track.bends]) {
       this.kerb(corner.at - 0.025, corner.at + 0.025, 1);
       this.kerb(corner.at - 0.025, corner.at + 0.025, -1);
     }
@@ -357,23 +358,7 @@ export class TrackView {
       c.fillStyle = 'rgba(255,255,255,0.35)';
       c.fill();
     }
-    const sprite = carSprite(color);
-    if (sprite) {
-      const L = Math.max(22, this.size * 0.04) * this.carScale, W = (L * sprite.width) / sprite.height;
-      c.save();
-      c.translate(x, y);
-      c.rotate(angle + Math.PI / 2);
-      c.shadowColor = 'rgba(0,0,0,0.35)';
-      c.shadowBlur = 3;
-      c.shadowOffsetY = 1.5;
-      c.drawImage(sprite, -W / 2, -L / 2, W, L);
-      c.restore();
-    } else {
-      c.beginPath();
-      c.arc(x, y, r, 0, Math.PI * 2);
-      c.fillStyle = color;
-      c.fill();
-    }
+    drawF1(c, x, y, angle, Math.max(24, this.size * 0.046) * this.carScale, color);
     // number: white with a dark outline, readable on any team colour
     c.font = `900 ${Math.round(r * (label.length > 2 ? 0.75 : 0.95))}px 'Titillium Web', system-ui, sans-serif`;
     c.textAlign = 'center';
@@ -490,8 +475,8 @@ export class TrackView {
     this.drawRain(race.rainNow);
   }
 
-  /** Hot Lap: one car alone, camera following it; the next key corner is highlighted. */
-  drawHotLap(f: number, color: string, label: string, wetness: number, nextCorner: number | null, rain: number): void {
+  /** Hot Lap: one car alone, camera following it; the next braking point is highlighted. */
+  drawHotLap(f: number, color: string, label: string, wetness: number, nextAt: number | null, rain: number): void {
     const c = this.ctx;
     const [px, py] = this.xy(f, 0);
     const k = 0.15;
@@ -504,8 +489,8 @@ export class TrackView {
     c.scale(this.cam.z, this.cam.z);
     c.translate(-this.cam.x, -this.cam.y);
     this.drawTrack(wetness, true, true);
-    if (nextCorner !== null) {
-      const [cx, cy] = this.xy(this.track.corners[nextCorner].at, 0);
+    if (nextAt !== null) {
+      const [cx, cy] = this.xy(nextAt, 0);
       c.beginPath();
       c.arc(cx, cy, this.tw * 1.4, 0, Math.PI * 2);
       c.strokeStyle = '#ffd200';
