@@ -30,7 +30,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const lobby = A.last('lobby');
   for (const [P, pid] of [[A, 'pa'], [B, 'pb']] as const) {
     const tid = lobby.players.find((p: any) => p.id === pid).teamId;
-    for (const run of [0, 1]) for (const n of [1, 2]) P.send({ t: 'qualiRun', run: { carId: `${tid}-${n}`, run, tyre: 'S', corners: [], time: 80 } });
+    for (const run of [0]) for (const n of [1, 2]) P.send({ t: 'qualiRun', run: { carId: `${tid}-${n}`, run, tyre: 'S', corners: [], time: 80 } });
   }
   await wait(5500);
   console.log('phase:', A.last('phase')?.phase);

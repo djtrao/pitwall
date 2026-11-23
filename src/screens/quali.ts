@@ -1,8 +1,8 @@
 /**
  * Hot Lap qualifying (SPEC section 6).
- * Each of your drivers gets 2 flying laps: driver 1 run 1, driver 2 run 1, then the second runs.
- * Before each key corner: Safe / Attack / Send it! (3 s, default Safe), then tap the timing bar.
- * The best lap counts; each driver starts the race on the tyre of his best lap.
+ * Each of your drivers gets one flying lap with 6 braking points (the 3 key corners and 3 more bends).
+ * Before each one: Safe / Attack / Send it! (3 s, default Safe), then tap the timing bar.
+ * Each driver starts the race on the tyre of his qualifying lap.
  */
 import { getLang, num, t, type StringKey } from '../i18n';
 import {
@@ -18,6 +18,7 @@ import {
   leaderboard,
   makeRng,
   QUALI,
+  qualiPoints,
   rand,
   realLapSeconds,
   zonesFor,
@@ -41,7 +42,7 @@ const TYRES: Tyre[] = ['S', 'M', 'H', 'W'];
 const DRIVE_SHARE = 0.36;
 const SLOW = 0.1;
 /** Prompt appears this far (lap share) before a corner. */
-const APPROACH = 0.06;
+const APPROACH = 0.045;
 const RISK_ICON = ['🛡️', '⚡', '🔥'];
 
 function loadDifficulty(): Difficulty {
@@ -82,7 +83,8 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   const driveSeconds = realLapSeconds(track, tuning) * DRIVE_SHARE;
   const remote = ctx.remote;
   const mine = ctx.cars.filter((c) => (remote ? c.teamId === remote.myTeam : c.human)).sort((a, b) => a.id.localeCompare(b.id));
-  const order = [0, 1].flatMap((run) => mine.map((car) => ({ car, run })));
+  const order = Array.from({ length: QUALI.runs }, (_, run) => mine.map((car) => ({ car, run }))).flat();
+  const points = qualiPoints(track);
   const aiRuns = remote ? [] : aiSession(ctx.cars, track, ctx.weather, tuning, ctx.seed);
   let serverRuns: QualiRun[] = [];
   const myRuns: QualiRun[] = [];
@@ -133,9 +135,8 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
       const known = new Set(serverRuns.map((r) => `${r.carId}/${r.run}`));
       return [...serverRuns, ...myRuns.filter((r) => !known.has(`${r.carId}/${r.run}`))];
     }
-    // AI laps appear as the session goes on: first runs after your first pair, second runs at the end
-    const done = myRuns.length;
-    const aiVisible = aiRuns.filter((r) => (r.run === 0 ? done >= 2 : done >= 4));
+    // AI laps appear once your first driver has set a time
+    const aiVisible = myRuns.length >= 1 ? aiRuns : [];
     return [...aiVisible, ...myRuns];
   };
 
@@ -180,7 +181,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
         ).join('')}</div>
         <div class="seg mt qdiff"><button data-diff="rookie" class="${difficulty === 'rookie' ? 'on' : ''}">${t('rookie')}</button><button data-diff="pro" class="${difficulty === 'pro' ? 'on' : ''}">${t('pro')}</button></div>
         <button class="big" id="qgo">${t('qGo')}</button>`
-          : `<div class="qcorners">${track.corners
+          : `<div class="qcorners">${points
               .map((cn, i) => {
                 const r = corners[i];
                 const mark = r ? (r.deleted ? '❌' : r.hit === 'green' ? '🟢' : r.hit === 'yellow' ? '🟡' : '🔴') : i === nextCorner ? '👉' : '⚪';
@@ -213,9 +214,9 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   function showChoice() {
     phase = 'choose';
     phaseStart = performance.now();
-    const cn = track.corners[nextCorner];
+    const cn = points[nextCorner];
     $('qov').innerHTML = `<div class="qprompt">
-      <div class="duel-title">${esc(t('qCorner', { n: nextCorner + 1, name: cn.name }))}</div>
+      <div class="duel-title">${esc(t('qCorner', { n: nextCorner + 1, of: points.length, name: cn.name }))}</div>
       <div class="duel-time"><i id="qbar"></i></div>
       <div class="duel-opts">${[0, 1, 2]
         .map((k) => `<button data-risk="${k}" class="risk-${k * 2}"><span class="dc-name">${RISK_ICON[k]} ${t(`qRisk${k}` as StringKey)}</span><span class="dc-chance">${t(`qRiskInfo${k}` as StringKey)}</span></button>`)
@@ -340,7 +341,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     if (driving) {
       const slow = phase === 'choose' || phase === 'timing';
       f += (dt / driveSeconds) * (slow ? SLOW : 1);
-      if (phase === 'drive' && nextCorner < 3 && f >= track.corners[nextCorner].at - APPROACH) showChoice();
+      if (phase === 'drive' && nextCorner < points.length && f >= points[nextCorner].at - APPROACH) showChoice();
       if (phase === 'choose') {
         const left = 1 - (now - phaseStart) / 1000 / QUALI.chooseSeconds;
         const bar = document.getElementById('qbar');
@@ -360,7 +361,8 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
       if (phase === 'drive' && f >= 1) finishLap();
     }
     const car = current()?.car ?? mine[0];
-    tv.drawHotLap(Math.min(f, 1), car.color, String(car.num), wet, phase === 'pick' || phase === 'done' ? null : nextCorner < 3 ? nextCorner : null, ctx.weather.quali);
+    const target = phase === 'pick' || phase === 'done' || nextCorner >= points.length ? null : points[nextCorner].at;
+    tv.drawHotLap(Math.min(f, 1), car.color, String(car.num), wet, target, ctx.weather.quali);
     requestAnimationFrame(frame);
   }
 

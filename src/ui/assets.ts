@@ -20,7 +20,7 @@ export function img(name: string): HTMLImageElement | null {
 export const icon = (name: string, cls = 'ic') => `<img class="${cls}" src="${BASE}icons/${name}.png" alt="" draggable="false">`;
 
 const SPRITES = [
-  'car_body', 'car_detail', 'grass', 'tribune_full', 'tribune_overhang_red', 'tent_red_large', 'tent_blue_large',
+  'grass', 'tribune_full', 'tribune_overhang_red', 'tent_red_large', 'tent_blue_large',
   'tree_large', 'tree_small', 'tires_red', 'tires_white', 'barrier_red_race', 'barrier_white_race', 'lights',
 ] as const;
 
@@ -42,30 +42,6 @@ export function whenReady(): Promise<void> {
       });
     }),
   ).then(() => undefined);
-}
-
-const tinted = new Map<string, HTMLCanvasElement>();
-
-/** The Kenney car (nose up) painted in a team colour; cached per colour. */
-export function carSprite(color: string): HTMLCanvasElement | null {
-  const hit = tinted.get(color);
-  if (hit) return hit;
-  const body = img('car_body'), detail = img('car_detail');
-  if (!body || !detail) return null;
-  const cv = document.createElement('canvas');
-  cv.width = body.naturalWidth;
-  cv.height = body.naturalHeight;
-  const c = cv.getContext('2d')!;
-  c.drawImage(body, 0, 0);
-  c.globalCompositeOperation = 'multiply';
-  c.fillStyle = color;
-  c.fillRect(0, 0, cv.width, cv.height);
-  c.globalCompositeOperation = 'destination-in';
-  c.drawImage(body, 0, 0);
-  c.globalCompositeOperation = 'source-over';
-  c.drawImage(detail, 0, 0);
-  tinted.set(color, cv);
-  return cv;
 }
 
 // ---------------------------------------------------------------- sounds

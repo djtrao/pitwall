@@ -6,7 +6,7 @@
 import { lapScale, weatherPenalty } from './model';
 import { clamp, gauss, makeRng, rand, range, type Rng } from './rng';
 import type { Tuning } from './tuning';
-import type { CarSetup, Track, Tyre, Weather } from './types';
+import type { CarSetup, KeyCorner, Track, Tyre, Weather } from './types';
 
 /** 0 Safe, 1 Attack, 2 Send it! */
 export type CornerRisk = 0 | 1 | 2;
@@ -18,20 +18,20 @@ export const QUALI = {
   green: [0.4, 0.25, 0.08],
   /** Each yellow zone beside the green one. */
   yellow: 0.12,
-  /** Time change (s) per risk level. */
+  /** Time change (s) per risk level and braking point (6 per lap). */
   delta: {
-    green: [0, -0.25, -0.5],
-    yellow: [0.3, 0.3, 0.4],
-    miss: [0.5, 1.2, 2.0],
+    green: [0, -0.17, -0.33],
+    yellow: [0.2, 0.2, 0.3],
+    miss: [0.35, 0.8, 1.3],
   },
-  /** Send it! missed: chance the lap is deleted. */
-  deleteChance: 0.5,
+  /** Send it! missed: chance the lap is deleted (only one lap per driver, so not too often). */
+  deleteChance: 0.3,
   softWider: 1.2,
   hardNarrower: 0.85,
   /** Slicks on a wet track (wetness over `wetAbove`). */
   wetSlicks: 0.6,
   wetAbove: 30,
-  /** Second run on the same compound. */
+  /** Second run on the same compound (unused while there is one run per driver). */
   usedTyre: 0.2,
   /** ± random part of a lap (s). */
   noise: 0.1,
@@ -46,8 +46,14 @@ export const QUALI = {
   centreMax: 0.72,
   /** Seconds to choose the risk before a corner. */
   chooseSeconds: 3,
-  runs: 2,
+  /** One flying lap per driver ... */
+  runs: 1,
 };
+
+/** ... with 6 braking points: the 3 key corners and 3 more bends, in lap order. */
+export function qualiPoints(track: Track): KeyCorner[] {
+  return [...track.corners, ...track.bends].sort((a, b) => a.at - b.at);
+}
 
 export interface Zones {
   /** Braking point: centre of the zones (share of the bar). */
@@ -143,6 +149,7 @@ export function fastestTyre(wetness: number, tuning: Tuning): Tyre {
  * braking point (better drivers aim more precisely).
  */
 export function aiQualifying(car: CarSetup, track: Track, wx: Weather, tuning: Tuning, rng: Rng): QualiRun[] {
+  const points = qualiPoints(track).length;
   const wet = wx.quali * 100;
   const tyre = fastestTyre(wet, tuning);
   const aggression = car.ai?.aggression ?? 0.5;
@@ -152,7 +159,7 @@ export function aiQualifying(car: CarSetup, track: Track, wx: Weather, tuning: T
   for (let run = 0; run < QUALI.runs; run++) {
     const used = run > 0 && runs[0].tyre === tyre;
     const corners: CornerResult[] = [];
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < points; k++) {
       const r = rand(rng);
       // cautious drivers mostly Safe, aggressive ones gamble; second runs are a bit bolder
       const bold = aggression + (run > 0 ? 0.15 : 0);

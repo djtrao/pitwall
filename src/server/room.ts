@@ -233,13 +233,13 @@ export class Room {
 
   private qualiRun(p: Player, run: QualiRun): void {
     if (this.phase !== 'quali' || !run || typeof run.carId !== 'string') return;
-    if (!run.carId.startsWith(`${p.teamId}-`) || ![0, 1].includes(run.run)) return;
+    if (!run.carId.startsWith(`${p.teamId}-`) || !(Number.isInteger(run.run) && run.run >= 0 && run.run < QUALI.runs)) return;
     if (this.humanRuns.some((r) => r.carId === run.carId && r.run === run.run)) return;
     const track = currentTrack(this.season!);
     // plausibility: no lap can be faster than a perfect one
-    const fastest = track.base - 3;
+    const fastest = track.base - 4;
     const time = run.time === null ? null : Math.max(fastest, Number(run.time) || track.base + 10);
-    this.humanRuns.push({ carId: run.carId, run: run.run, tyre: run.tyre, corners: Array.isArray(run.corners) ? run.corners.slice(0, 3) : [], time });
+    this.humanRuns.push({ carId: run.carId, run: run.run, tyre: run.tyre, corners: Array.isArray(run.corners) ? run.corners.slice(0, 8) : [], time });
     this.broadcastQuali();
     this.checkQualiDone();
   }
@@ -267,8 +267,8 @@ export class Room {
   private visibleQualiRuns(): QualiRun[] {
     // AI laps appear as the session goes on
     const share = (this.io.now() - this.qualiStart) / (this.qualiEnd - this.qualiStart);
-    const humansHalf = this.players.filter((p) => p.connected).every((p) => this.humanRuns.filter((r) => r.carId.startsWith(`${p.teamId}-`)).length >= 2);
-    return [...this.aiRuns.filter((r) => (r.run === 0 ? share > 0.35 || humansHalf : share > 0.8)), ...this.humanRuns];
+    const humansStarted = this.players.filter((p) => p.connected).every((p) => this.humanRuns.some((r) => r.carId.startsWith(`${p.teamId}-`)));
+    return [...this.aiRuns.filter(() => share > 0.3 || humansStarted), ...this.humanRuns];
   }
 
   private startRace(): void {
