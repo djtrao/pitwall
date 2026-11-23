@@ -34,6 +34,7 @@ import {
 import { $, esc, shortName, tyreIcon, tyreName } from '../ui/common';
 import { fullscreenButton, wireFullscreen } from '../ui/fullscreen';
 import { TrackView } from '../ui/trackview';
+import { play } from '../ui/assets';
 
 const TYRES: Tyre[] = ['S', 'M', 'H', 'W'];
 /** Share of a race lap's real time for a hot lap without prompts (prompts slow the car down). */
@@ -254,6 +255,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     corners.push(res);
     phase = 'feedback';
     phaseStart = performance.now();
+    play(res.deleted || hit === 'miss' ? 'bad' : hit === 'green' ? 'good' : 'select', 0.7);
     const label = res.deleted ? t('qLapDeleted') : hit === 'green' ? t('qGreen') : hit === 'yellow' ? t('qYellow') : t('qMiss');
     const d = res.deleted ? '' : `${res.delta > 0 ? '+' : res.delta < 0 ? '−' : '±'}${num(Math.abs(res.delta), 2)} s`;
     $('qov').innerHTML = `<div class="qfeedback ${res.deleted ? 'miss' : hit}"><b>${label}</b><span>${d}</span></div>`;

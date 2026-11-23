@@ -2,10 +2,10 @@
  * Fullscreen on/off + landscape lock. Works in Chrome on Android; iPhones don't allow it,
  * so the button is only shown where the browser supports fullscreen.
  */
-const ENTER_ICON =
-  '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
-const EXIT_ICON =
-  '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+import { icon } from './assets';
+
+const ENTER_ICON = icon('larger');
+const EXIT_ICON = icon('smaller');
 
 export function supportsFullscreen(): boolean {
   return !!document.fullscreenEnabled && !window.matchMedia('(display-mode: fullscreen)').matches;

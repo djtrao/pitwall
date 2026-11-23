@@ -4,6 +4,7 @@ import { loadSeason, loadTeam } from '../game/store';
 import { TRACKS, type Track } from '../sim';
 import { $, esc, trackDesc } from '../ui/common';
 import { lastGame } from './multi';
+import { soundButton, wireSound } from '../ui/assets';
 
 export interface MenuActions {
   startSeason: (races: number) => void;
@@ -25,7 +26,7 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
     app.innerHTML = `
       <div class="row-between">
         <h1>🏁 ${t('appTitle')}</h1>
-        <button class="lang" id="lang">${getLang() === 'de' ? 'EN' : 'DE'}</button>
+        <div class="seg">${soundButton(t('sound'))}<button class="lang" id="lang">${getLang() === 'de' ? 'EN' : 'DE'}</button></div>
       </div>
       <div class="menugrid">
         <div class="panel teamcard" style="border-left:6px solid ${team.color}">
@@ -63,6 +64,7 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
       setLang(getLang() === 'de' ? 'en' : 'de');
       render();
     };
+    wireSound(app);
     $('edit').onclick = a.editTeam;
     $('multi').onclick = () => a.multiplayer();
     const rejoin = document.getElementById('rejoin');

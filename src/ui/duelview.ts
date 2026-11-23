@@ -5,6 +5,7 @@
  * Three scenes: a straight, a corner and a chicane (S-bend).
  */
 import type { DuelOutcome } from '../sim';
+import { img } from './assets';
 
 export type DuelScene = 'straight' | 'corner' | 'chicane';
 
@@ -223,19 +224,13 @@ export class DuelView {
     const c = this.ctx;
     const now = performance.now();
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // grass with a gentle stripe pattern
-    c.fillStyle = '#1d3b23';
+    // Kenney grass, then the road, then trees and tyre stacks beside it
+    const tile = img('grass');
+    const pattern = tile ? c.createPattern(tile, 'repeat') : null;
+    c.fillStyle = pattern ?? '#27ae60';
     c.fillRect(0, 0, this.w, this.h);
-    c.fillStyle = 'rgba(255,255,255,0.03)';
-    for (let x = -this.h; x < this.w; x += 40) {
-      c.beginPath();
-      c.moveTo(x, 0);
-      c.lineTo(x + 20, 0);
-      c.lineTo(x + 20 + this.h, this.h);
-      c.lineTo(x + this.h, this.h);
-      c.fill();
-    }
     this.drawRoad();
+    this.drawDecos();
 
     const t = this.outcome ? (now - this.animAt) / 1000 / this.animSeconds : -1;
     const p = this.positions(Math.min(1, t), now);
@@ -263,6 +258,39 @@ export class DuelView {
     if (this.outcome && t > 0.8 && this.caption) this.drawCaption(Math.min(1, (t - 0.8) / 0.15));
   }
 
+  private decos: { key: string; list: { name: string; x: number; y: number; size: number; a: number }[] } = { key: '', list: [] };
+
+  /** Trees and tyre stacks off the road; placed once per scene and canvas size. */
+  private drawDecos(): void {
+    const key = `${this.scene}:${this.w}x${this.h}`;
+    if (this.decos.key !== key) {
+      const { bw, bh, ox, oy } = this.box();
+      const rw = this.roadWidth();
+      const pts = this.path.map(([x, y]) => [ox + x * bw, oy + y * bh]);
+      const dist = (x: number, y: number) => Math.min(...pts.map(([a, b]) => Math.hypot(a - x, b - y)));
+      const list: { name: string; x: number; y: number; size: number; a: number }[] = [];
+      let seed = 1;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < 400 && list.length < 9; i++) {
+        const x = rnd() * this.w, y = rnd() * this.h, d = dist(x, y);
+        if (list.some((o) => Math.hypot(o.x - x, o.y - y) < o.size)) continue;
+        if (d > rw * 1.0 && d < rw * 1.25) list.push({ name: rnd() < 0.5 ? 'tires_red' : 'tires_white', x, y, size: rw * 0.32, a: 0 });
+        else if (d > rw * 2) list.push({ name: rnd() < 0.5 ? 'tree_large' : 'tree_small', x, y, size: rw * (0.6 + rnd() * 0.35), a: rnd() * 6.3 });
+      }
+      this.decos = { key, list };
+    }
+    const c = this.ctx;
+    for (const o of this.decos.list) {
+      const im = img(o.name);
+      if (!im) continue;
+      c.save();
+      c.translate(o.x, o.y);
+      c.rotate(o.a);
+      c.drawImage(im, -o.size / 2, -o.size / 2, o.size, o.size);
+      c.restore();
+    }
+  }
+
   private drawRoad(): void {
     const c = this.ctx;
     const { bw, bh, ox, oy } = this.box();
@@ -282,19 +310,19 @@ export class DuelView {
       c.stroke();
       c.globalAlpha = 1;
     }
-    // red/white kerbs
+    // orange/white kerbs (Kenney colours)
     line();
-    c.strokeStyle = '#e8e8e8';
+    c.strokeStyle = '#fafafa';
     c.lineWidth = rw * 1.16;
     c.stroke();
     line();
     c.setLineDash([rw * 0.35, rw * 0.35]);
-    c.strokeStyle = '#d0272d';
+    c.strokeStyle = '#e86a17';
     c.stroke();
     c.setLineDash([]);
     // asphalt
     line();
-    c.strokeStyle = '#3b4049';
+    c.strokeStyle = '#6a727c';
     c.lineWidth = rw;
     c.stroke();
     // racing line hint

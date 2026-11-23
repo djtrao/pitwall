@@ -23,6 +23,7 @@ import { fullscreenButton, wireFullscreen } from '../ui/fullscreen';
 import { DuelView } from '../ui/duelview';
 import { pitRating, runPitGame } from '../ui/pitgame';
 import { TrackView } from '../ui/trackview';
+import { icon, play } from '../ui/assets';
 
 const TICK = 0.1; // real seconds per simulation tick (same as the server later)
 const MODE_ICON = ['🐢', '➖', '🔥', '💥'];
@@ -109,7 +110,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
         <div class="r-lap"><span class="mut small">${esc(race.track.name)}</span><b id="lapc"></b></div>
         <div class="r-wx" id="wxbar"></div>
         <div class="seg r-speed" id="spd">${(src.speedMode === 'local' ? [0, 1, 2, 4] : src.speedMode === 'host' ? [0, 1, 2] : [])
-          .map((s) => `<button data-s="${s}" class="${s === (src.hostSpeed?.() ?? 1) ? 'on' : ''}" aria-label="${s ? `${s}×` : t('pause')}">${s ? `${s}×` : '❚❚'}</button>`)
+          .map((s) => `<button data-s="${s}" class="${s === (src.hostSpeed?.() ?? 1) ? 'on' : ''}" aria-label="${s ? `${s}×` : t('pause')}">${s ? `${s}×` : icon('pause')}</button>`)
           .join('')}</div>
         ${fullscreenButton(t('fullscreen'))}
       </div>
@@ -213,7 +214,10 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     }
     if (race.over && !bannerShown) {
       bannerShown = true;
-      setTimeout(() => ($('banner').style.display = 'flex'), 900);
+      setTimeout(() => {
+        $('banner').style.display = 'flex';
+        play('good');
+      }, 900);
     }
     requestAnimationFrame(frame);
   };
@@ -258,6 +262,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       const caption = { pass: t('outPass'), fail: t('outHeld'), crash: t('outCrash'), spin: t('outSpin'), off: t('outOff'), wait: t('outWait') }[d.outcome as 'pass'];
       const aName = t(`att${d.attack ?? 0}` as StringKey);
       const dName = t(`def${d.defend ?? 0}` as StringKey);
+      const sound = ({ pass: 'pass', crash: 'crash', spin: 'bump', off: 'bump', fail: 'select' } as const)[d.outcome as 'pass'];
+      if (sound) window.setTimeout(() => play(sound), race.tuning.duel.showSeconds * 400);
       dv.play(d.outcome, caption ?? '', race.tuning.duel.showSeconds, t('duelChoices', { a: `${ATTACK_ICON[d.attack ?? 0]} ${aName}`, d: `${DEFEND_ICON[d.defend ?? 0]} ${dName}` }));
     }
     dv.draw();
@@ -432,6 +438,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       newest = m;
     }
     while (box.childElementCount > 12) box.lastElementChild!.remove();
+    if (newest?.mine) play('radio');
     if (newest) {
       const tk = $('ticker');
       tk.textContent = `📻 ${newest.text}`;

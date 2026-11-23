@@ -3,7 +3,21 @@
  * track outline, pit lane next to the start/finish straight, key corners,
  * cars as coloured dots with their numbers, safety car, rain.
  */
-import { DEFAULT_TUNING, type Car, type RaceState, type Track } from '../sim';
+import { DEFAULT_TUNING, makeRng, rand, type Car, type RaceState, type Track } from '../sim';
+import { carSprite, img } from './assets';
+
+/** A sprite placed next to the track (tribune, tent, tree, tyre stack ...). */
+interface Deco {
+  name: string;
+  x: number;
+  y: number;
+  /** length of the longer side in px */
+  size: number;
+  angle: number;
+}
+
+const GRASS = '#27ae60';
+const KERB = '#e86a17';
 
 // pit lane from just before the line to just after it (same numbers as the simulation)
 const PIT_FROM = -DEFAULT_TUNING.pit.laneIn;
@@ -64,6 +78,10 @@ export class TrackView {
   /** Camera: centre (px) and zoom. Follows `followId` when set. */
   private cam = { x: 160, y: 115, z: 1 };
   private carScale = 1;
+  private decos: Deco[] = [];
+  /** Where the corner numbers go: the free spot next to each key corner. */
+  private labelPos: [number, number][] = [];
+  private grass: CanvasPattern | null = null;
   followId: string | null = null;
   static readonly ZOOM = 2.6;
 
@@ -107,6 +125,133 @@ export class TrackView {
     const p = this.scr[0], nn = this.nrm[0];
     this.inSign = this.inside([p[0] + nn[0] * 20, p[1] + nn[1] * 20]) ? 1 : -1;
     this.tw = Math.max(10, dw * 0.032);
+    this.placeDecos();
+  }
+
+  /** Track heading (radians) at lap fraction f. */
+  private heading(f: number): number {
+    const [x1, y1] = this.xy(f - 0.002);
+    const [x2, y2] = this.xy(f + 0.002);
+    return Math.atan2(y2 - y1, x2 - x1);
+  }
+
+  /** Smallest distance (px) from a point to the track centre line. */
+  private distToTrack(x: number, y: number): number {
+    let m = Infinity;
+    for (let i = 0; i < this.scr.length; i += 3) m = Math.min(m, Math.hypot(this.scr[i][0] - x, this.scr[i][1] - y));
+    return m;
+  }
+
+  /** Which side (+1 / -1 along the normal) is the outside of the bend at f. */
+  private outside(f: number): number {
+    const [ax, ay] = this.xy(f - 0.02), [bx, by] = this.xy(f + 0.02);
+    const mx = (ax + bx) / 2, my = (ay + by) / 2;
+    const [px, py] = this.xy(f, this.tw), [qx, qy] = this.xy(f, -this.tw);
+    return Math.hypot(px - mx, py - my) > Math.hypot(qx - mx, qy - my) ? 1 : -1;
+  }
+
+  /** Tribunes on the main straight, team tents behind the pit lane, tyre stacks at the key corners, trees. */
+  private placeDecos(): void {
+    const tw = this.tw, out = -this.inSign;
+    const d: Deco[] = [];
+    const along = (name: string, f: number, lat: number, size: number, turn = 0) => {
+      const [x, y] = this.xy(f, lat);
+      d.push({ name, x, y, size, angle: this.heading(f) + turn });
+    };
+    // grandstands opposite the pits, or behind the garages if there is no room on screen
+    const [sx, sy] = this.xy(0, out * tw * 2.6);
+    const m = tw * 2.2;
+    const room = sx > m && sx < this.w - m && sy > m && sy < this.h - m;
+    const standLat = room ? out * tw * 2.4 : this.inSign * tw * 4.1;
+    for (const f of [-0.03, 0, 0.03]) along(f === 0 ? 'tribune_overhang_red' : 'tribune_full', f, standLat, tw * 2.6, standLat > 0 ? 0 : Math.PI);
+    // team garages behind the pit lane
+    let k = 0;
+    for (let f = PIT_FROM + 0.008; f < PIT_TO - 0.005; f += 0.014) along(k++ % 2 ? 'tent_blue_large' : 'tent_red_large', f, this.inSign * tw * 2.6, tw * 1.25);
+    // tyre stacks and barriers on the outside of each key corner
+    this.labelPos = [];
+    this.track.corners.forEach((c, i) => {
+      const s = this.outside(c.at);
+      for (const df of [-0.008, 0, 0.008]) {
+        const [x, y] = this.xy(c.at + df, s * tw * 1.5);
+        if (this.distToTrack(x, y) > tw * 0.9) along(i % 2 ? 'tires_white' : 'tires_red', c.at + df, s * tw * 1.5, tw * 0.55);
+      }
+      // corner number: the spot near the corner that is furthest from any tarmac
+      let best: [number, number] = this.xy(c.at, -s * tw * 2), bestD = -1;
+      for (const side of [-s, s]) for (const k of [1.9, 2.4, 3]) for (const df of [0, -0.01, 0.01]) {
+        const p = this.xy(c.at + df, side * tw * k);
+        const dd = Math.min(this.distToTrack(p[0], p[1]), tw * 1.3) - (side === s ? tw * 0.2 : 0) - k * 0.05 * tw;
+        if (dd > bestD) (bestD = dd), (best = p);
+      }
+      this.labelPos.push(best);
+    });
+    // trees, away from the track and from each other
+    const rng = makeRng([...this.track.id].reduce((h, ch) => h * 31 + ch.charCodeAt(0), 7) >>> 0);
+    const trees: [number, number][] = [];
+    const pad = tw * 6;
+    for (let tries = 0; tries < 900 && trees.length < 46; tries++) {
+      const x = -pad + rand(rng) * (this.w + 2 * pad), y = -pad + rand(rng) * (this.h + 2 * pad);
+      if (this.distToTrack(x, y) < tw * 2.4) continue;
+      if (d.some((o) => Math.hypot(o.x - x, o.y - y) < o.size * 1.1)) continue;
+      if (this.labelPos.some(([a, b]) => Math.hypot(a - x, b - y) < tw * 1.6)) continue;
+      if (trees.some(([a, b]) => Math.hypot(a - x, b - y) < tw * 1.8)) continue;
+      trees.push([x, y]);
+      const big = rand(rng) < 0.5;
+      d.push({ name: big ? 'tree_large' : 'tree_small', x, y, size: tw * (big ? 1.7 : 1.15), angle: rand(rng) * Math.PI * 2 });
+    }
+    this.decos = d;
+  }
+
+  private drawDecos(): void {
+    const c = this.ctx;
+    for (const o of this.decos) {
+      const im = img(o.name);
+      if (!im) continue;
+      const k = o.size / Math.max(im.naturalWidth, im.naturalHeight);
+      const w = im.naturalWidth * k, h = im.naturalHeight * k;
+      c.save();
+      c.translate(o.x, o.y);
+      c.rotate(o.angle);
+      c.drawImage(im, -w / 2, -h / 2, w, h);
+      c.restore();
+    }
+  }
+
+  /** Grass (Kenney tile) over the visible area plus a margin, darker when wet. */
+  private drawGround(wetness: number): void {
+    const c = this.ctx;
+    const tile = img('grass');
+    if (tile && !this.grass) this.grass = c.createPattern(tile, 'repeat');
+    c.fillStyle = this.grass ?? GRASS;
+    if (this.grass) this.grass.setTransform(new DOMMatrix().scale(this.tw / 40));
+    c.fillRect(-this.w, -this.h, this.w * 3, this.h * 3);
+    if (wetness > 0) {
+      c.fillStyle = `rgba(10,30,50,${Math.min(0.35, wetness / 250)})`;
+      c.fillRect(-this.w, -this.h, this.w * 3, this.h * 3);
+    }
+  }
+
+  /** Orange-white kerbs along a stretch of track on the given side. */
+  private kerb(from: number, to: number, side: number): void {
+    const c = this.ctx;
+    const line = () => {
+      c.beginPath();
+      for (let f = from; f <= to + 1e-9; f += 0.002) {
+        const [x, y] = this.xy(f, side * this.tw * 0.55);
+        if (f === from) c.moveTo(x, y);
+        else c.lineTo(x, y);
+      }
+    };
+    c.lineCap = 'butt';
+    line();
+    c.strokeStyle = '#fafafa';
+    c.lineWidth = this.tw * 0.22;
+    c.stroke();
+    line();
+    c.strokeStyle = KERB;
+    c.setLineDash([this.tw * 0.35, this.tw * 0.35]);
+    c.stroke();
+    c.setLineDash([]);
+    c.lineCap = 'round';
   }
 
   private inside([x, y]: [number, number]): boolean {
@@ -133,10 +278,7 @@ export class TrackView {
 
   drawTrack(wetness: number, showCorners = true, background = true): void {
     const c = this.ctx, P = this.scr;
-    if (background) {
-      c.fillStyle = '#0d1a13';
-      c.fillRect(0, 0, this.w, this.h);
-    }
+    if (background) this.drawGround(wetness);
     const path = () => {
       c.beginPath();
       c.moveTo(P[0][0], P[0][1]);
@@ -152,19 +294,31 @@ export class TrackView {
       if (f === PIT_FROM) c.moveTo(x, y);
       else c.lineTo(x, y);
     }
-    c.strokeStyle = '#3d434d';
+    const asphalt = (w: number) => {
+      const g = Math.round(112 - wetness * 0.35), b = Math.round(124 - wetness * 0.15);
+      return `rgb(${g - 6},${g + 2},${b + w})`;
+    };
+    c.strokeStyle = '#fafafa';
+    c.lineWidth = this.tw * 0.5 + 3;
+    c.stroke();
+    c.strokeStyle = asphalt(0);
     c.lineWidth = this.tw * 0.5;
     c.stroke();
-    // kerbs and asphalt (darker and bluer when wet)
+    // white edge lines and asphalt (darker and bluer when wet)
     path();
-    c.strokeStyle = '#d9dde3';
-    c.lineWidth = this.tw + 4;
+    c.strokeStyle = '#fafafa';
+    c.lineWidth = this.tw + 3;
     c.stroke();
     path();
-    const g = Math.round(58 - wetness * 0.2), b = Math.round(66 + wetness * 0.3);
-    c.strokeStyle = `rgb(${g - 2},${g + 2},${b})`;
+    c.strokeStyle = asphalt(wetness * 0.2);
     c.lineWidth = this.tw;
     c.stroke();
+    // kerbs on both sides of every key corner
+    for (const corner of this.track.corners) {
+      this.kerb(corner.at - 0.025, corner.at + 0.025, 1);
+      this.kerb(corner.at - 0.025, corner.at + 0.025, -1);
+    }
+    this.drawDecos();
     // chequered start/finish line
     const n = this.nrm[0], p = this.scr[0], sq = this.tw / 4;
     for (let r = -2; r < 2; r++) {
@@ -179,12 +333,12 @@ export class TrackView {
       c.font = `600 ${Math.max(10, Math.round(this.size * 0.026))}px 'Titillium Web', system-ui, sans-serif`;
       c.textBaseline = 'middle';
       this.track.corners.forEach((corner, i) => {
-        const [x, y] = this.xy(corner.at, -this.inSign * this.tw * 1.6);
-        c.fillStyle = 'rgba(255,255,255,0.12)';
+        const [x, y] = this.labelPos[i] ?? this.xy(corner.at, this.tw * 2);
+        c.fillStyle = 'rgba(0,0,0,0.45)';
         c.beginPath();
         c.arc(x, y, 9, 0, Math.PI * 2);
         c.fill();
-        c.fillStyle = '#c9d1dc';
+        c.fillStyle = '#fff';
         c.textAlign = 'center';
         c.fillText(String(i + 1), x, y + 0.5);
       });
@@ -192,27 +346,43 @@ export class TrackView {
     }
   }
 
-  drawCar(x: number, y: number, color: string, label: string, highlight: boolean, alpha = 1): void {
+  /** A car: the Kenney sprite in the team colour, nose along `angle`, with its number on top. */
+  drawCar(x: number, y: number, color: string, label: string, highlight: boolean, alpha = 1, angle = 0): void {
     const c = this.ctx;
     const r = Math.max(8, this.size * 0.02) * this.carScale;
     c.globalAlpha = alpha;
     if (highlight) {
       c.beginPath();
-      c.arc(x, y, r + 4.5 * this.carScale, 0, Math.PI * 2);
-      c.fillStyle = 'rgba(255,255,255,0.3)';
+      c.arc(x, y, r * 1.55, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(255,255,255,0.35)';
       c.fill();
     }
-    c.beginPath();
-    c.arc(x, y, r, 0, Math.PI * 2);
-    c.fillStyle = color;
-    c.fill();
-    c.lineWidth = highlight ? 2.5 : 1.2;
-    c.strokeStyle = highlight ? '#fff' : 'rgba(0,0,0,0.7)';
-    c.stroke();
-    c.fillStyle = luminance(color) > 0.55 ? '#000' : '#fff';
-    c.font = `900 ${Math.round(r * (label.length > 2 ? 0.95 : 1.15))}px 'Titillium Web', system-ui, sans-serif`;
+    const sprite = carSprite(color);
+    if (sprite) {
+      const L = Math.max(22, this.size * 0.04) * this.carScale, W = (L * sprite.width) / sprite.height;
+      c.save();
+      c.translate(x, y);
+      c.rotate(angle + Math.PI / 2);
+      c.shadowColor = 'rgba(0,0,0,0.35)';
+      c.shadowBlur = 3;
+      c.shadowOffsetY = 1.5;
+      c.drawImage(sprite, -W / 2, -L / 2, W, L);
+      c.restore();
+    } else {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fillStyle = color;
+      c.fill();
+    }
+    // number: white with a dark outline, readable on any team colour
+    c.font = `900 ${Math.round(r * (label.length > 2 ? 0.75 : 0.95))}px 'Titillium Web', system-ui, sans-serif`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.lineWidth = Math.max(2, r * 0.28);
+    c.strokeStyle = highlight ? '#000' : 'rgba(0,0,0,0.85)';
+    c.strokeText(label, x, y + 0.5);
+    c.fillStyle = luminance(color) > 0.92 ? '#ffd200' : '#fff';
     c.fillText(label, x, y + 0.5);
     c.globalAlpha = 1;
   }
@@ -293,27 +463,25 @@ export class TrackView {
     this.carScale = 1 / Math.sqrt(this.cam.z);
 
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    c.fillStyle = '#0d1a13';
-    c.fillRect(0, 0, this.w, this.h);
     c.translate(this.w / 2, this.h / 2);
     c.scale(this.cam.z, this.cam.z);
     c.translate(-this.cam.x, -this.cam.y);
-    this.drawTrack(race.wetness, true, false);
+    this.drawTrack(race.wetness, true, true);
     for (const car of cars) {
       const [x, y] = pos.get(car.id)!;
-      this.drawCar(x, y, car.color, String(car.num), mine(car), car.status === 'finished' ? 0.45 : 1);
+      this.drawCar(x, y, car.color, String(car.num), mine(car), car.status === 'finished' ? 0.45 : 1, this.heading(dist(car)));
     }
     if (race.safetyCar.active) {
       const lead = cars.filter((x) => x.status === 'running').reduce((m, x) => Math.max(m, dist(x)), -Infinity);
       if (lead > -Infinity) {
         const [x, y] = this.xy(lead + 0.018, 0);
-        this.drawCar(x, y, '#ffb000', 'SC', false);
+        this.drawCar(x, y, '#ffb000', 'SC', false, 1, this.heading(lead + 0.018));
       }
     }
     if (followed) {
       // ring around the followed car
       c.beginPath();
-      c.arc(followed[0], followed[1], Math.max(8, this.size * 0.02) * this.carScale + 7 * this.carScale, 0, Math.PI * 2);
+      c.arc(followed[0], followed[1], Math.max(8, this.size * 0.02) * this.carScale * 1.9, 0, Math.PI * 2);
       c.strokeStyle = '#ffd200';
       c.lineWidth = 2.5 * this.carScale;
       c.stroke();
@@ -332,12 +500,10 @@ export class TrackView {
     this.cam.z += (2.1 - this.cam.z) * k;
     this.carScale = 1 / Math.sqrt(this.cam.z);
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    c.fillStyle = '#0d1a13';
-    c.fillRect(0, 0, this.w, this.h);
     c.translate(this.w / 2, this.h / 2);
     c.scale(this.cam.z, this.cam.z);
     c.translate(-this.cam.x, -this.cam.y);
-    this.drawTrack(wetness, true, false);
+    this.drawTrack(wetness, true, true);
     if (nextCorner !== null) {
       const [cx, cy] = this.xy(this.track.corners[nextCorner].at, 0);
       c.beginPath();
@@ -348,7 +514,7 @@ export class TrackView {
       c.stroke();
       c.setLineDash([]);
     }
-    this.drawCar(px, py, color, label, true);
+    this.drawCar(px, py, color, label, true, 1, this.heading(f));
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawRain(rain);
   }

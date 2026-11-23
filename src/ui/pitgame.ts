@@ -9,6 +9,7 @@
  * If the player does not touch anything, the crew does an average stop.
  */
 import { num, t } from '../i18n';
+import { play } from './assets';
 
 export interface PitResult {
   /** Standing time on the F1 scale (s). */
@@ -163,7 +164,9 @@ export function runPitGame(
     }, 1800);
   };
 
+  go.dataset.nosound = '1';
   host.querySelectorAll<HTMLButtonElement>('.pg-wheel').forEach((b) => {
+    b.dataset.nosound = '1';
     b.onpointerdown = (e) => {
       e.preventDefault();
       if (phase !== 'wheels' || idx < 0) return;
@@ -171,10 +174,12 @@ export function runPitGame(
       if (b.dataset.w === order[idx]) {
         times.push((performance.now() - litAt) / 1000);
         b.classList.add('done');
+        play('gun');
         clearTimeout(timer);
         nextWheel();
       } else {
         wrong++;
+        play('bad', 0.6);
         b.classList.add('wrong');
         hint.textContent = t('pitStuck');
         window.setTimeout(() => b.classList.remove('wrong'), 300);
@@ -184,8 +189,13 @@ export function runPitGame(
   go.onpointerdown = (e) => {
     e.preventDefault();
     taps++;
-    if (phase === 'red') hint.textContent = t('pitTooEarly');
-    else if (phase === 'green') finish((performance.now() - greenAt) / 1000, false);
+    if (phase === 'red') {
+      hint.textContent = t('pitTooEarly');
+      play('bad', 0.6);
+    } else if (phase === 'green') {
+      play('go');
+      finish((performance.now() - greenAt) / 1000, false);
+    }
   };
 
   window.setTimeout(nextWheel, 350);

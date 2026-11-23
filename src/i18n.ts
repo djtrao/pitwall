@@ -26,6 +26,7 @@ const STRINGS = {
   wetQuali: { de: 'Es regnet am Start!', en: 'It is raining at the start!' },
   pause: { de: 'Pause', en: 'Pause' },
   fullscreen: { de: 'Vollbild', en: 'Fullscreen' },
+  sound: { de: 'Ton an/aus', en: 'Sound on/off' },
   rotateHint: { de: '🔄 Tipp: Handy quer halten – so passt alles auf einen Blick.', en: '🔄 Tip: hold your phone sideways – everything fits on one screen.' },
   rainTyresFrom: { de: 'Regenreifen ab {w} %', en: 'rain tyres from {w} %' },
   lapShort: { de: 'R', en: 'L' },

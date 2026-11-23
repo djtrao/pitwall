@@ -11,7 +11,10 @@ import { qualiScreen } from './screens/quali';
 import { localRace, raceScreen } from './screens/race';
 import { resultsScreen, seasonEndScreen } from './screens/results';
 import { teamScreen } from './screens/team';
+import { initSound, preload } from './ui/assets';
 
+preload();
+initSound();
 const app = document.getElementById('app')!;
 setLang(getLang());
 const tuning = makeTuning();
