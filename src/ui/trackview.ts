@@ -5,7 +5,7 @@
  */
 import { DEFAULT_TUNING, makeRng, rand, type Car, type RaceState, type Track } from '../sim';
 import { img } from './assets';
-import { drawF1 } from './f1car';
+import { CAR_WIDTH, drawF1 } from './f1car';
 
 /** A sprite placed next to the track (tribune, tent, tree, tyre stack ...). */
 interface Deco {
@@ -70,8 +70,10 @@ export class TrackView {
   private size = 320;
   /** Smoothed sideways offsets so cars running close together are drawn side by side. */
   private lat = new Map<string, number>();
-  /** Smoothed push-back (lap share) so cars in the same lane never overlap. */
+  /** Smoothed push-back (lap share) so a car never overlaps the one ahead. */
   private gapFix = new Map<string, number>();
+  /** Side an attacking car has moved to (kept until the attack is over). */
+  private side = new Map<string, number>();
   /** Length of the drawn centre line (px). */
   private perim = 1;
   private dpr = 1;
@@ -436,46 +438,53 @@ export class TrackView {
   drawRace(race: RaceState, dist: (c: Car) => number, mine: (c: Car) => boolean): void {
     const c = this.ctx;
     const cars = race.cars.filter((x) => x.status !== 'dnf').sort((a, b) => dist(a) - dist(b));
-    // Lanes: at most two cars side by side. A car closing in moves to the inside of the next bend
-    // (cutting the corner to attack), the car in front keeps the outside. Cars in the same lane
-    // are pushed back a little so they never overlap.
+    // Every driver drives their own line: a slow personal drift across the racing line. Only a car
+    // that is really attacking (sitting close behind for a while) moves out of the slipstream to one
+    // side and stays there until the attack is over. A car never overlaps the one ahead of it: if the
+    // two are not clearly side by side, it is drawn just behind it.
     const cf = this.carLen / this.perim; // one car length as a share of the lap
-    const lane = new Map<string, number>();
+    const cw = this.carLen * CAR_WIDTH; // car width in px
+    const target = new Map<string, number>();
+    for (const car of cars) {
+      if (car.status !== 'running') {
+        this.side.delete(car.id);
+        target.set(car.id, 0);
+        continue;
+      }
+      const d = dist(car);
+      const ph = car.num * 2.399; // golden angle: every car has a different phase
+      let t = this.tw * 0.13 * (0.6 * Math.sin(d * Math.PI * 2 * 2.3 + ph) + 0.4 * Math.sin(d * Math.PI * 2 * 5.1 + ph * 1.7));
+      if (car.closeTo) {
+        let sd = this.side.get(car.id);
+        if (sd === undefined) {
+          sd = -this.outside(d + 0.03); // the inside of what comes next
+          this.side.set(car.id, sd);
+        }
+        t = sd * this.tw * 0.3;
+      } else this.side.delete(car.id);
+      target.set(car.id, t);
+      const cur = this.lat.get(car.id) ?? 0;
+      this.lat.set(car.id, cur + (t - cur) * 0.06);
+    }
     const vis = new Map<string, number>();
-    const order = [...cars].reverse();
+    const order = [...cars].reverse(); // leader first
     for (let i = 0; i < order.length; i++) {
       const car = order[i];
-      const d = dist(car);
-      let ln = 0;
-      let v = d;
+      let v = dist(car);
       if (car.status === 'running') {
-        let ahead: Car | undefined;
-        for (let j = i - 1; j >= 0 && !ahead; j--) if (order[j].status === 'running') ahead = order[j];
-        if (ahead) {
-          const gap = vis.get(ahead.id)! - d;
-          if (gap < cf * 2.6) {
-            const la = lane.get(ahead.id)!;
-            ln = la !== 0 ? -la : -this.outside(d + cf * 3);
-            if (la === 0 && gap < cf * 1.6) lane.set(ahead.id, -ln);
-          }
-        }
-        for (let j = i - 1; j >= 0 && j >= i - 4; j--) {
+        const la = this.lat.get(car.id) ?? 0;
+        for (let j = i - 1; j >= 0 && j >= i - 3; j--) {
           const o = order[j];
           if (o.status !== 'running') continue;
-          const lo = lane.get(o.id)!;
-          if (lo === 0 || ln === 0 || lo === ln) v = Math.min(v, vis.get(o.id)! - cf * 1.25);
+          if (Math.abs((this.lat.get(o.id) ?? 0) - la) < cw * 1.1) v = Math.min(v, vis.get(o.id)! - cf * 1.08);
         }
       }
-      lane.set(car.id, ln);
       vis.set(car.id, v);
     }
     for (const car of cars) {
-      const target = lane.get(car.id)! * this.tw * 0.25;
-      const cur = this.lat.get(car.id) ?? 0;
-      this.lat.set(car.id, cur + (target - cur) * 0.2);
       const fix = vis.get(car.id)! - dist(car);
       const g = this.gapFix.get(car.id) ?? 0;
-      this.gapFix.set(car.id, g + (fix - g) * (fix < g ? 0.5 : 0.15));
+      this.gapFix.set(car.id, g + (fix - g) * (fix < g ? 0.35 : 0.1));
     }
     const shown = (car: Car) => dist(car) + (this.gapFix.get(car.id) ?? 0);
     const pos = new Map<string, [number, number]>();
@@ -501,8 +510,8 @@ export class TrackView {
     for (const car of cars) {
       const [x, y] = pos.get(car.id)!;
       const f = car.status === 'pit' ? dist(car) : shown(car);
-      // nose turned a little towards the lane it is moving to
-      const steer = car.status === 'running' ? ((lane.get(car.id)! * this.tw * 0.25 - (this.lat.get(car.id) ?? 0)) / this.tw) * 0.9 : 0;
+      // nose turned a little towards where the car is heading sideways
+      const steer = car.status === 'running' ? (((target.get(car.id) ?? 0) - (this.lat.get(car.id) ?? 0)) / this.tw) * 0.6 : 0;
       this.drawCar(x, y, car.color, String(car.num), mine(car), car.status === 'finished' ? 0.45 : 1, this.heading(f) + steer);
     }
     if (race.safetyCar.active) {

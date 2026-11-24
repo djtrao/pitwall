@@ -1,9 +1,9 @@
 import { aiAttack, aiDefend, aiOnLap, attackChoiceOdds, defendChoiceOdds } from './ai';
 import { carLapTime, lapScale, mistakeChance, REF_LAP, tyreRuleOk, wearPerLap } from './model';
 import { realLapSeconds } from './tracks';
-import { chance, clamp, gauss, int, makeRng, rand, range } from './rng';
+import { chance, clamp, gauss, int, makeRng, rand, range, type Rng } from './rng';
 import { makeTuning, type Tuning } from './tuning';
-import type { Car, Command, Duel, DuelAttack, DuelDefend, DuelOutcome, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
+import type { Car, Command, Track, Duel, DuelAttack, DuelDefend, DuelOutcome, EventKind, RaceConfig, RaceEvent, RaceState } from './types';
 import { NORMAL } from './types';
 import { generateWeather } from './weather';
 
@@ -33,6 +33,8 @@ export function createRace(cfg: RaceConfig): RaceState {
 
   const cars: Car[] = cfg.cars.map((s, i) => {
     const rng = makeRng(cfg.seed, 100 + i);
+    const flowRng = makeRng(cfg.seed, 300 + i);
+    const skill = Array.from({ length: tuning.flow.sectors }, () => gauss(flowRng) * tuning.flow.skill);
     const ai = s.ai ?? {
       wetThreshold: range(rng, 26, 40),
       dryThreshold: range(rng, 16, 26),
@@ -78,6 +80,9 @@ export function createRace(cfg: RaceConfig): RaceState {
       closeTo: null,
       duelLap: -99,
       mistakes: 0,
+      skill,
+      sectors: rollSectors(skill, flowRng, track, tuning),
+      flowRng,
       rng,
     };
   });
@@ -104,6 +109,62 @@ export function createRace(cfg: RaceConfig): RaceState {
     nextId: 1,
     rng: makeRng(cfg.seed, 0),
   };
+}
+
+/**
+ * Time factor per sector for one lap: the driver's strengths, fresh luck and maybe one bad corner.
+ * The strengths and the luck average out to zero; the bad corner's average cost is spread back over
+ * the lap, so the expected lap time stays exactly `lapTime`.
+ */
+function rollSectors(skill: readonly number[], r: Rng, track: Track, t: Tuning): number[] {
+  const f = t.flow;
+  const n = f.sectors;
+  const out = skill.map((s) => s + gauss(r) * f.luck);
+  const mean = out.reduce((a, b) => a + b, 0) / n;
+  // seconds → share of one sector's time
+  const share = (sec: number) => (sec * lapScale(track) * n) / track.base;
+  const avgBad = f.badChance * share((f.bad[0] + f.bad[1]) / 2);
+  for (let k = 0; k < n; k++) out[k] -= mean + avgBad / n;
+  if (chance(r, f.badChance)) out[int(r, 0, n - 1)] += share(range(r, f.bad[0], f.bad[1]));
+  return out;
+}
+
+/** True inside a corner zone (around a key corner or a bend). */
+function inCorner(track: Track, frac: number, half: number): boolean {
+  for (const k of track.corners) if (Math.abs(((frac - k.at + 1.5) % 1) - 0.5) < half) return true;
+  for (const k of track.bends) if (Math.abs(((frac - k.at + 1.5) % 1) - 0.5) < half) return true;
+  return false;
+}
+
+/** Share of the lap that is corner zone (cached per track), to balance dirty air against slipstream. */
+const cornerShareCache = new Map<string, number>();
+function cornerShare(track: Track, half: number): number {
+  const key = `${track.id}:${half}`;
+  let v = cornerShareCache.get(key);
+  if (v === undefined) {
+    let n = 0;
+    for (let i = 0; i < 1000; i++) if (inCorner(track, i / 1000, half)) n++;
+    v = Math.min(0.9, Math.max(0.1, n / 1000));
+    cornerShareCache.set(key, v);
+  }
+  return v;
+}
+
+/** Extra time factor for this car right now: sector flow, plus dirty air / slipstream behind `ahead`. */
+function flowFactor(c: Car, ahead: Car | undefined, race: RaceState): number {
+  if (c.dist < 0) return 0;
+  const t = race.tuning.flow;
+  const frac = c.dist - Math.floor(c.dist);
+  let k = c.sectors[Math.min(t.sectors - 1, Math.floor(frac * t.sectors))] ?? 0;
+  if (ahead && !race.safetyCar.active) {
+    const dd = ahead.dist - c.dist;
+    if (dd > 0 && dd < 0.5 && dd * c.lapTime < t.dirtyGap * lapScale(race.track)) {
+      const cs = cornerShare(race.track, t.cornerHalf);
+      // close behind: slower in corners, faster on straights; zero on average over the lap
+      k += inCorner(race.track, frac, t.cornerHalf) ? t.dirtyCorner : -t.dirtyCorner * cs / (1 - cs);
+    }
+  }
+  return k;
 }
 
 function emit(race: RaceState, kind: EventKind, car?: Car, other?: Car, data?: RaceEvent['data']) {
@@ -226,7 +287,7 @@ export function step(race: RaceState, realDt = 0.1): void {
   const next = new Map<Car, number>();
   for (let i = 0; i < running.length; i++) {
     const c = running[i];
-    let v = 1 / c.lapTime;
+    let v = 1 / (c.lapTime * (1 + flowFactor(c, running[i - 1], race)));
     if (c.loss > 0) v *= t.mistakes.slowFactor;
     if (sc.active && i === 0) v = Math.min(v, 1 / (track.base * t.safetyCar.slow));
     let nd = c.dist + v * dt;
@@ -257,6 +318,8 @@ export function step(race: RaceState, realDt = 0.1): void {
         }
         c.closeTime += dt;
         if (c.closeTime >= t.duel.closeLaps * REF_LAP) startDuel(race, c, a);
+      } else if (c.closeTo === a.id && gap < t.duel.closeGap * 1.6 && a.loss <= 0 && dd < 0.5) {
+        // the gap breathes (corners / straights): the attack is only paused, not over
       } else {
         c.closeTo = null;
         c.closeTime = 0;
@@ -349,6 +412,7 @@ function crossLine(race: RaceState, c: Car): void {
     return;
   }
   c.noise = gauss(c.rng) * t.noise;
+  c.sectors = rollSectors(c.skill, c.flowRng, race.track, t);
   if (f >= 1 && c.human && c.status === 'running' && c.cond < t.cliffAt + 0.05) emit(race, 'tyresWorn', c, undefined, { cond: Math.round(c.cond * 100) });
 }
 

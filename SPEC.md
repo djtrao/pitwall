@@ -129,6 +129,17 @@ T = T_base + car + driver + tyre + wear + mode + weather + noise
 - **Spin** on slicks in the wet: −6 s.
 - Every mistake creates a team radio message so the kids understand what happened.
 
+### 7.3a Natural driving within a lap
+The lap is cut into 12 sectors. Each driver has lasting strengths and weaknesses per sector (±2 % of
+the sector time) plus fresh luck every lap (±3 %); in about one lap of three one corner goes clearly
+wrong (+0.3–0.7 s). Closer than 1.2 s behind another car: 3 % slower in corner zones (dirty air),
+faster on the straights (slipstream). All of this averages out over a lap, so lap times and balance
+stay the same; it only makes gaps grow and shrink. An attack (close for a while) pauses rather than
+ends when the gap briefly opens to under 1.6 × the close gap.
+In the track view every car drives its own slightly different line; only an attacking car moves to
+one side (the inside of what comes next) and stays there until the attack is over. Cars are never
+drawn overlapping. The inside/outside overtaking scene is shown only in the duel close-up.
+
 ### 7.4 Weather
 
 Keep the prototype model:

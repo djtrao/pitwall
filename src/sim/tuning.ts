@@ -14,6 +14,28 @@ export const DEFAULT_TUNING = {
   /** Random lap-time noise (standard deviation, s), new each lap. */
   noise: 0.45,
 
+  /**
+   * Natural driving within a lap. The lap is cut into sectors; each driver is a bit quicker or
+   * slower in each (lasting strengths + new luck every lap), sometimes misses a corner, and loses
+   * a little in corners / gains on straights when right behind another car (dirty air, slipstream).
+   * Averaged over a lap this changes nothing: lap times and the balance stay the same.
+   */
+  flow: {
+    sectors: 12,
+    /** Lasting strength per sector (share of the sector time, standard deviation). */
+    skill: 0.02,
+    /** New luck per sector and lap. */
+    luck: 0.03,
+    /** Chance per lap of one clearly bad corner, and the time it costs (s). */
+    badChance: 0.35,
+    bad: [0.3, 0.7] as [number, number],
+    /** Closer than this (s) behind a car: dirty air in corners, slipstream on straights. */
+    dirtyGap: 1.2,
+    dirtyCorner: 0.03,
+    /** Half the length of a corner zone around each key corner / bend (lap share). */
+    cornerHalf: 0.035,
+  },
+
   tyres: {
     S: { pace: 0, wear: 12 },
     M: { pace: 0.6, wear: 8 },
