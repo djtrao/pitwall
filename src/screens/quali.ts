@@ -45,20 +45,6 @@ const SLOW = 0.1;
 const APPROACH = 0.045;
 const RISK_ICON = ['🛡️', '⚡', '🔥'];
 
-function loadDifficulty(): Difficulty {
-  try {
-    return localStorage.getItem('pitwall-difficulty') === 'pro' ? 'pro' : 'rookie';
-  } catch {
-    return 'rookie';
-  }
-}
-function saveDifficulty(d: Difficulty) {
-  try {
-    localStorage.setItem('pitwall-difficulty', d);
-  } catch {
-    /* ignore */
-  }
-}
 
 export interface QualiContext {
   track: Track;
@@ -89,7 +75,8 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
   let serverRuns: QualiRun[] = [];
   const myRuns: QualiRun[] = [];
   const rng = makeRng(ctx.seed, 10);
-  let difficulty = loadDifficulty();
+  // always the Pro marker speed (the Rookie / Pro choice was removed)
+  const difficulty: Difficulty = 'pro';
   let step = 0; // index in `order`
   let tyre: Tyre = wet > cross ? 'W' : 'S';
 
@@ -179,7 +166,6 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
         <div class="seg qtyres">${TYRES.map(
           (k) => `<button class="tb ${k === tyre ? 'on' : ''}" data-tyre="${k}">${tyreIcon(k)}<small>${tyreName(k)}${k === firstTyre ? `<br><em>${t('qUsed')}</em>` : ''}</small></button>`,
         ).join('')}</div>
-        <div class="seg mt qdiff"><button data-diff="rookie" class="${difficulty === 'rookie' ? 'on' : ''}">${t('rookie')}</button><button data-diff="pro" class="${difficulty === 'pro' ? 'on' : ''}">${t('pro')}</button></div>
         <button class="big" id="qgo">${t('qGo')}</button>`
           : `<div class="qcorners">${points
               .map((cn, i) => {
@@ -193,9 +179,6 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
       }
     </div>`;
     panel.querySelectorAll<HTMLButtonElement>('[data-tyre]').forEach((b) => (b.onclick = () => ((tyre = b.dataset.tyre as Tyre), renderPanel())));
-    panel.querySelectorAll<HTMLButtonElement>('[data-diff]').forEach(
-      (b) => (b.onclick = () => ((difficulty = b.dataset.diff as Difficulty), saveDifficulty(difficulty), renderPanel())),
-    );
     const go = document.getElementById('qgo');
     if (go) go.onclick = startLap;
   }

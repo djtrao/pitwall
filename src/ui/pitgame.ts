@@ -1,11 +1,10 @@
 /**
  * Pit stop mini-game (about 3 s):
- *  1. 8 spots on the car can light up (4 wheels, front jack, rear jack, front wing, engine).
- *     In each stop 4 of them light up one after another in a random order – tap each as fast
- *     as you can. Tapping a dark spot = something got stuck. A broken wing / engine is always
- *     one of the 4 (it is being repaired).
- *  2. Release light: wait for GREEN, then tap GO (tapping on red does nothing – no penalty).
- * The reaction times are turned into an F1-style standing time (about 1.9 – 6 s).
+ * 8 spots on the car can light up (4 wheels, front jack, rear jack, front wing, engine).
+ * In each stop 6 of them light up one after another in a random order – tap each as fast
+ * as you can. Tapping a dark spot = something got stuck. A broken wing / engine is always
+ * one of the 6 (it is being repaired). After the last one the car is released at once.
+ * The reaction times are turned into an F1-style standing time (about 1.8 – 6 s).
  * If the player does not touch anything, the crew does an average stop.
  */
 import { num, t } from '../i18n';
@@ -23,9 +22,8 @@ const WHEELS = ['fl', 'fr', 'rl', 'rr'] as const;
 /** All spots that can light up. */
 export const SPOTS = ['fl', 'fr', 'rl', 'rr', 'fj', 'rj', 'fw', 'en'] as const;
 export type Spot = (typeof SPOTS)[number];
-const TASKS = 4;
+const TASKS = 6;
 const WHEEL_TIMEOUT = 1.2;
-const RELEASE_TIMEOUT = 1.5;
 
 let lastOrder = '';
 
@@ -44,7 +42,7 @@ export function shuffledWheels(): (typeof WHEELS)[number][] {
 }
 
 /**
- * The 4 jobs for this stop, in a random order: `forced` spots (damage repairs) are always included,
+ * The 6 jobs for this stop, in a random order: `forced` spots (damage repairs) are always included,
  * the rest is picked at random from all 8 spots. Never the same as the previous stop.
  */
 export function pickSpots(forced: Spot[] = []): Spot[] {
@@ -73,14 +71,14 @@ export function pitRating(seconds: number): string {
 }
 
 /** Turn reaction times into a standing time on the F1 scale. */
-export function stopSeconds(wheelTimes: number[], wrongTaps: number, release: number): number {
-  const wheels = wheelTimes.reduce((s, r) => s + Math.max(0, r - 0.18) * 0.55, 0);
-  return Math.round((1.8 + wheels + wrongTaps * 0.8 + Math.max(0, release - 0.15) * 0.6) * 10) / 10;
+export function stopSeconds(wheelTimes: number[], wrongTaps: number): number {
+  const wheels = wheelTimes.reduce((s, r) => s + Math.max(0, r - 0.18) * 0.4, 0);
+  return Math.round((1.8 + wheels + wrongTaps * 0.8) * 10) / 10;
 }
 
 /**
  * Runs the game inside `host` (an absolutely positioned overlay). Calls `done` with the result
- * as soon as the car is released, then shows the time for a moment and calls `closed`.
+ * as soon as the last spot is done (the car is released), then shows the time for a moment and calls `closed`.
  */
 export function runPitGame(
   host: HTMLElement,
@@ -97,9 +95,7 @@ export function runPitGame(
     <div class="pg-car">
       <div class="pg-body"></div>
       ${SPOTS.map((w) => `<button class="pg-wheel pg-${w}${w.length && WHEELS.includes(w as never) ? '' : ' pg-part'}" data-w="${w}" aria-label="${w}">${label[w]}</button>`).join('')}
-      <div class="pg-light" id="pglight"></div>
     </div>
-    <button class="pg-go" id="pggo" disabled>${t('pitGo')}</button>
     <div class="pg-result" id="pgres"></div>`;
   host.classList.add('show');
 
@@ -109,17 +105,14 @@ export function runPitGame(
   let taps = 0;
   let idx = -1;
   let litAt = 0;
-  let phase: 'wheels' | 'red' | 'green' | 'over' = 'wheels';
-  let greenAt = 0;
+  let phase: 'wheels' | 'over' = 'wheels';
   let timer = 0;
   const hint = host.querySelector<HTMLElement>('#pghint')!;
-  const light = host.querySelector<HTMLElement>('#pglight')!;
-  const go = host.querySelector<HTMLButtonElement>('#pggo')!;
 
   const nextWheel = () => {
     host.querySelectorAll('.pg-wheel').forEach((b) => b.classList.remove('lit'));
     idx++;
-    if (idx >= order.length) return startRelease();
+    if (idx >= order.length) return finish();
     host.querySelector(`.pg-${order[idx]}`)!.classList.add('lit');
     litAt = performance.now();
     clearTimeout(timer);
@@ -131,40 +124,25 @@ export function runPitGame(
     }, WHEEL_TIMEOUT * 1000);
   };
 
-  const startRelease = () => {
-    phase = 'red';
-    hint.textContent = t('pitWaitGreen');
-    light.className = 'pg-light red';
-    go.disabled = false;
-    timer = window.setTimeout(() => {
-      phase = 'green';
-      greenAt = performance.now();
-      light.className = 'pg-light green';
-      timer = window.setTimeout(() => finish(RELEASE_TIMEOUT * 0.66, false), RELEASE_TIMEOUT * 1000);
-    }, 400 + Math.random() * 800);
-  };
-
-  const finish = (release: number, unsafe: boolean) => {
+  const finish = () => {
     if (phase === 'over') return;
     phase = 'over';
     clearTimeout(timer);
-    go.disabled = true;
     const crew = taps === 0;
-    const seconds = crew ? avgStop : stopSeconds(times, wrong, release);
-    done({ seconds, unsafe, crew });
+    const seconds = crew ? avgStop : stopSeconds(times, wrong);
+    done({ seconds, unsafe: false, crew });
+    play('go');
     const res = host.querySelector<HTMLElement>('#pgres')!;
-    res.innerHTML = `<b>${t('pitTime', { s: num(seconds) })}</b><span>${crew ? t('pitCrew') : pitRating(seconds)}</span>${
-      unsafe ? `<span class="bad">${t('pitUnsafe', { s: 5 })}</span>` : ''
-    }`;
+    res.innerHTML = `<b>${t('pitTime', { s: num(seconds) })}</b><span>${crew ? t('pitCrew') : pitRating(seconds)}</span>`;
     res.classList.add('show');
+    // short, so you see your car leave the pit lane
     window.setTimeout(() => {
       host.classList.remove('show');
       host.innerHTML = '';
       closed();
-    }, 1800);
+    }, 1100);
   };
 
-  go.dataset.nosound = '1';
   host.querySelectorAll<HTMLButtonElement>('.pg-wheel').forEach((b) => {
     b.dataset.nosound = '1';
     b.onpointerdown = (e) => {
@@ -186,17 +164,6 @@ export function runPitGame(
       }
     };
   });
-  go.onpointerdown = (e) => {
-    e.preventDefault();
-    taps++;
-    if (phase === 'red') {
-      hint.textContent = t('pitTooEarly');
-      play('bad', 0.6);
-    } else if (phase === 'green') {
-      play('go');
-      finish((performance.now() - greenAt) / 1000, false);
-    }
-  };
 
   window.setTimeout(nextWheel, 350);
 }
