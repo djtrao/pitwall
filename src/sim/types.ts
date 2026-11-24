@@ -135,6 +135,12 @@ export interface Car extends CarSetup {
   /** Last lap number in which this car had a duel. */
   duelLap: number;
   mistakes: number;
+  /** Driver's lasting strengths per sector of the lap (+ is slower), see `tuning.flow`. */
+  skill: number[];
+  /** Time factor per sector for the current lap: good and bad corners. */
+  sectors: number[];
+  /** Separate random stream for the sector flow (keeps the other random draws unchanged). */
+  flowRng: Rng;
   rng: Rng;
 }
 
