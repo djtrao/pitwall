@@ -64,7 +64,7 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **one flying
 
 1. Choose a tyre (Soft, Medium, Hard, Rain).
 2. The car drives around the track view. Before each of the 6 braking points, the player chooses how hard to go (3 seconds to choose, default Safe).
-3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. More risk also means a faster marker (braking later): Safe ×1, Attack ×1.25, Send it! ×1.6. Send it! leaves only about 0.05 s (Pro) to 0.08 s (Rookie).
+3. Then a timing bar appears: a marker sweeps across it and the player taps at the braking point. The braking point (green zone with yellow zones beside it) sits at a **random place** on the bar (30–72 %), and the marker **speeds up** while it moves, so the timing cannot be learned by heart. More risk also means a faster marker (braking later): Safe ×1, Attack ×1.25, Send it! ×1.6. Send it! leaves only about 0.05 s.
 4. After the lap: lap time, position on the provisional leaderboard, and a short comment ("Great lap!", "Lap deleted – track limits").
 
 | Choice | Green zone width | Hit green | Hit yellow | Miss |
@@ -78,7 +78,7 @@ Qualifying is a short mini-game, not a simulation. Each driver gets **one flying
 - Soft tyres make green zones 20% wider, Hard 15% narrower.
 - Slick tyres on a wet track (over 30% wetness): zones 40% narrower. Rain tyres on a wet track: normal width.
 - Lap time = base lap time from the race model (car, driver, tyre, wetness) + corner results + small noise (±0.1 s).
-- **Difficulty per player:** Rookie (marker crosses in 1.4 s) or Pro (0.95 s), so kids of different ages can play together.
+- **One difficulty only (Pro):** the marker crosses the bar in 0.95 s. (The Rookie choice was removed.)
 
 **Order and multiplayer**
 
@@ -95,8 +95,8 @@ The race runs in real time. Cars move across the screen at the same speed on eve
 T = T_base + car + driver + tyre + wear + mode + weather + noise
 ```
 
-- **car:** team pace offset (humans equal, AI spread up to 0.6 s). **driver:** ±0.15 s for AI drivers, 0 for human drivers. **noise:** about ±0.3 s, new each lap.
-- Cars cannot drive through each other: a faster car closes up to about 0.4 s behind and then has to pass in a duel (section 7.5).
+- **car:** team pace offset (humans equal; AI teams keep the real 2026 order, spread about ±0.45 s). **driver:** ±0.15 s for AI drivers, 0 for human drivers. **noise:** about ±0.3 s, new each lap.
+- Cars cannot drive through each other: a faster car closes up to about 0.8 s behind (about one car length on screen), easing off smoothly to the speed of the car ahead (never a sudden stop), and then has to pass in a duel (section 7.5).
 
 ### 7.1 Tyres
 
@@ -132,10 +132,10 @@ T = T_base + car + driver + tyre + wear + mode + weather + noise
 ### 7.3a Natural driving within a lap
 The lap is cut into 12 sectors. Each driver has lasting strengths and weaknesses per sector (±2 % of
 the sector time) plus fresh luck every lap (±3 %); in about one lap of three one corner goes clearly
-wrong (+0.3–0.7 s). Closer than 1.2 s behind another car: 3 % slower in corner zones (dirty air),
+wrong (+0.3–0.7 s). Closer than 1.6 s behind another car: up to 3 % slower in corner zones (dirty air),
 faster on the straights (slipstream). All of this averages out over a lap, so lap times and balance
 stay the same; it only makes gaps grow and shrink. An attack (close for a while) pauses rather than
-ends when the gap briefly opens to under 1.6 × the close gap.
+ends when the gap briefly opens to under 1.6 × the close gap. The sector values blend smoothly into each other and dirty air fades in as the gap closes, so speeds never jump.
 In the track view every car drives its own slightly different line; only an attacking car moves to
 one side (the inside of what comes next) and stays there until the attack is over. Cars are never
 drawn overlapping. The inside/outside overtaking scene is shown only in the duel close-up.
@@ -152,7 +152,7 @@ Keep the prototype model:
 
 ### 7.5 Overtaking duels
 
-When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel starts.
+When a car is within 1.2 s of the car ahead for about a third of a lap and is faster, a duel starts. After a pass the two swap places in the simulation at once; the track view shows the attacker driving past over about 1.5 s.
 
 - **Duel close-up only for the car you are following:** when a player taps a driver card, the track zooms in and follows that car. When that car (one of your own) gets into a duel, the track view changes to a **close-up of the two cars**: the attacker sits behind and looks for a way past. **Both sides get 6 seconds** to choose (in multiplayer two players may fight each other; the AI decides at once but secretly). The race does not pause. If nobody answers, the driver decides by himself (same logic as the AI). Duels of cars you are not following are decided automatically, without a close-up.
 - **Choices** (each with its chance in % and a risk symbol 🟢 🟡 🟠 🔴, colour + icon + word):
@@ -179,7 +179,9 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 
 ### 7.5b Pit stop game
 
-- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car with **8 spots** (4 wheels, front jack, rear jack, front wing, engine). In each stop **4 of them** light up one after another in a random order – tap each as fast as possible; tapping a dark spot means something got stuck. A broken wing or engine is always one of the 4. Then the release light: wait for green, then tap GO (tapping on red does nothing). **No penalties** – a good stop simply gets the car out sooner, a bad one later.
+- When one of your cars stops, a short game (about 3 s) appears on the track view: a top-down car with **8 spots** (4 wheels, front jack, rear jack, front wing, engine). In each stop **6 of them** light up one after another in a random order – tap each as fast as possible; tapping a dark spot means something got stuck. A broken wing or engine is always one of the 6. After the last one the car is released at once (no release light). **No penalties** – a good stop simply gets the car out sooner, a bad one later.
+- The game starts when the car turns into the pit lane. The car stands in its box until the game is done, then drives out under the limiter. Waiting for the game costs no time: it is made up on the way out (the exit still takes at least 75 % of its normal time). While the game is open and until the car is back on track, single-player races run at 1×.
+- If the team's other car comes in while the first is still in the pit lane, the crew does its stop automatically (an average stop + 0.4 s).
 - The reaction times are turned into an F1-style standing time (about 1.9 s to 6 s) and shown with a rating: great (≤ 2.2 s), good (≤ 2.8 s), a bit slow (≤ 3.6 s), slow. The difference to the average 2.6 s changes the stop.
 - If the player does not touch anything, the crew does an average stop (no penalty). AI crews vary a little and sometimes fumble (+2 s). The second car of a team that stops at the same time waits behind the first (+3 s).
 - The game runs on the phone; only the result is sent to the server (like the Hot Lap timing). In single player at 4× the race slows to 2× while the game runs.
@@ -188,7 +190,7 @@ When a car is within 0.8 s of the car ahead for half a lap and is faster, a duel
 ### 7.6 Safety car
 
 - Chance per race comes from the track (0.2 to 0.6). It can start anywhere between lap 2 and two laps before the end. A crash in a duel also has a 25% chance to bring it out.
-- It stays out for a **random distance of 0.6 to 1.6 laps** and can come in anywhere on the lap – nobody knows when, so pitting is a real gamble. All cars bunch up behind the leader about 0.4 s apart, drive slowly (lap time ×1.8) and cannot overtake. Tyre wear ×0.3.
+- It stays out for a **random distance of 0.6 to 1.6 laps** and can come in anywhere on the lap – nobody knows when, so pitting is a real gamble. All cars bunch up behind the leader about 0.8 s apart, drive slowly (lap time ×1.8) and cannot overtake. Tyre wear ×0.3.
 - **Pit lane:** a stopping car turns into the pit lane shortly before the line, drives to its box at the speed limit, stands still (about 2.6 s, from the pit stop game), and drives out at the speed limit; pit lane time + standing time = the track's pit loss (18–25 s). Under the safety car the others drive slowly, so a stop costs clearly less (about 6 s gain), but only if the safety car is still out. Show a big "SAFETY CAR" banner and a radio message: "Safety car! Box now?"
 - On the restart, duels are possible again straight away.
 

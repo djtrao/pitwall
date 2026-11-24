@@ -104,14 +104,27 @@ tr.me td { background: rgba(255, 255, 255, 0.07); font-weight: 700; }
 #banner .big { width: auto; padding: 10px 24px; }
 
 /* driver cards (compact) */
-.dcard { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid; border-radius: 12px; padding: 6px 8px; min-width: 0; }
+.dcard { position: relative; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid; border-radius: 12px; padding: 6px 8px; min-width: 0; }
 .crow { display: flex; align-items: center; gap: 6px; cursor: pointer; min-height: 30px; }
 .cpos { font-weight: 900; font-size: 20px; min-width: 38px; }
 .cname { flex: 1; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .cty { display: flex; align-items: center; gap: 3px; font-size: 14px; white-space: nowrap; }
 .cty .td { width: 22px; height: 22px; border-width: 3px; font-size: 10px; }
-.cfollow { font-size: 15px; opacity: 0.35; padding: 2px 4px; border-radius: 6px; }
-.cfollow.on { opacity: 1; background: #ffd200; }
+/* camera button: clearly a button, says what a tap does */
+.dcard { container-type: inline-size; }
+.crow { border: 2px solid rgba(255, 210, 0, 0.45); border-radius: 10px; padding: 0 4px 0 6px; background: rgba(255, 210, 0, 0.06); }
+.crow:active { background: rgba(255, 210, 0, 0.2); }
+.crow:has(.cfollow.on) { border-color: #ffd200; background: rgba(255, 210, 0, 0.16); }
+.cfollow { font-size: 13px; padding: 2px 7px; border-radius: 999px; color: #111; background: #ffd200; white-space: nowrap; flex-shrink: 0; }
+.cfollow b { font-weight: 800; }
+@container (max-width: 300px) { .cfollow b { display: none; } .cpos { min-width: 0; } }
+/* a duel waits for your answer: card and timing-tower row flash red */
+.cask { display: none; position: absolute; left: 8px; right: 8px; top: 40px; z-index: 2; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 5px 8px; border-radius: 8px; background: #e10600; color: #fff; font-weight: 900; font-size: 15px; text-align: center; cursor: pointer; }
+.dcard.ask { animation: askflash 0.8s infinite; border-color: #e10600; }
+.dcard.ask .cask { display: block; }
+.r-tower tr.ask td { animation: askrow 0.8s infinite; }
+@keyframes askflash { 50% { box-shadow: 0 0 0 3px #e10600, 0 0 18px rgba(225, 6, 0, 0.7); } }
+@keyframes askrow { 50% { background: rgba(225, 6, 0, 0.55); } }
 .wbar { height: 5px; background: #0e1118; border-radius: 3px; margin: 3px 0; overflow: hidden; }
 .wbar i { display: block; height: 100%; width: 100%; background: var(--ok); transition: width 0.3s; }
 .cinfo { font-size: 13px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
@@ -234,12 +247,7 @@ table.res td:nth-child(3) .pill { display: block; width: max-content; margin: 2p
 .pg-wheel.lit { background: #ffd200; border-color: #fff; color: #000; box-shadow: 0 0 18px #ffd200; animation: pulse 0.4s infinite; }
 .pg-wheel.done { background: #2a6; border-color: #5f5; color: #fff; }
 .pg-wheel.wrong { background: #c33; color: #fff; }
-.pg-light { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); width: 22%; aspect-ratio: 1; border-radius: 50%;
   background: #222; border: 3px solid #555; }
-.pg-light.red { background: #e10600; box-shadow: 0 0 16px #e10600; }
-.pg-light.green { background: #2ecc40; box-shadow: 0 0 22px #2ecc40; }
-.pg-go { min-width: 140px; font-size: 20px; font-weight: 900; background: #1f6f33; border-color: #2ecc40; }
-.pg-go:disabled { opacity: 0.35; }
 .pg-result { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(10, 12, 17, 0.9); border-radius: 12px; gap: 4px; }
 .pg-result.show { display: flex; }
@@ -279,7 +287,6 @@ table.res td:nth-child(3) .pill { display: block; width: max-content; margin: 2p
 .qtyres .tb { flex-direction: column; flex: 1 !important; padding: 3px 2px; gap: 1px; }
 .qtyres .tb small { font-size: 11px; line-height: 1.1; text-align: center; }
 .qtyres .tb em { font-style: normal; color: var(--warn); font-size: 10px; }
-.qdiff button { font-size: 13px; }
 .qcorners div { font-size: 14px; padding: 3px 0; border-bottom: 1px dashed var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (orientation: landscape) {
   .quali .r-cards { grid-template-rows: 1fr; }
@@ -355,3 +362,4 @@ button.on { box-shadow: inset 0 -3px 0 rgba(0,0,0,0.15); }
 button:active { box-shadow: inset 0 -1px 0 rgba(0,0,0,0.25); }
 .ic { width: 22px; height: 22px; display: block; margin: auto; pointer-events: none; }
 button.on .ic { filter: invert(1); }
+.ver { font-size: 13px; font-weight: 700; opacity: 0.55; vertical-align: middle; margin-left: 4px; letter-spacing: 0; }

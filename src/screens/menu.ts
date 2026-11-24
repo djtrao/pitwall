@@ -1,4 +1,5 @@
 import { getLang, setLang, t } from '../i18n';
+import { BUILD } from '../version';
 import type { Season } from '../game/season';
 import { loadSeason, loadTeam } from '../game/store';
 import { TRACKS, type Track } from '../sim';
@@ -25,7 +26,7 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
     const saved = loadSeason();
     app.innerHTML = `
       <div class="row-between">
-        <h1>🏁 ${t('appTitle')}</h1>
+        <h1>🏁 ${t('appTitle')} <span class="ver">v${BUILD}</span></h1>
         <div class="seg">${soundButton(t('sound'))}<button class="lang" id="lang">${getLang() === 'de' ? 'EN' : 'DE'}</button></div>
       </div>
       <div class="menugrid">

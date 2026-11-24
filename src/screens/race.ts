@@ -152,7 +152,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     if (!b) return;
     const c = mine[Number(b.dataset.d)];
     if (b.dataset.act === 'follow') {
-      follow(tv.followId === c.id ? null : c.id);
+      // a car waiting for your duel answer: always zoom in (the close-up with the choices opens)
+      follow(tv.followId === c.id && !askingFor(c) ? null : c.id);
       return;
     }
     if (c.status === 'finished' || c.status === 'dnf') return;
@@ -171,16 +172,44 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   // tap a timing tower row to follow that car, tap again (or the track) to see the whole track
   $('tower').onclick = (e) => {
     const row = (e.target as HTMLElement).closest<HTMLElement>('[data-follow]');
-    if (row) follow(tv.followId === row.dataset.follow ? null : row.dataset.follow!);
+    if (!row) return;
+    const c = race.cars.find((x) => x.id === row.dataset.follow);
+    follow(tv.followId === row.dataset.follow && !(c && askingFor(c)) ? null : row.dataset.follow!);
   };
   $('cv').onclick = () => follow(null);
 
   function follow(id: string | null) {
     tv.followId = id;
-    // duel prompts only for the car you are watching; the other car decides by itself
-    for (const c of mine) src.command({ type: 'autoDuel', car: c.id, on: c.id !== id });
-    mine.forEach((c, i) => $(`cfollow${i}`).classList.toggle('on', c.id === id));
+    mine.forEach((c, i) => {
+      const on = c.id === id;
+      $(`cfollow${i}`).classList.toggle('on', on);
+      $(`cfollow${i}`).innerHTML = `🎥 <b>${on ? t('camOverview') : t('camFollow')}</b>`;
+    });
     updateUI();
+  }
+
+  // Duels of both your cars wait for your answer (for the answer time, then they are decided
+  // automatically). The close-up with the choices shows while you follow that car; otherwise its
+  // row in the timing tower and its card flash red until you tap them.
+  for (const c of mine) src.command({ type: 'autoDuel', car: c.id, on: false });
+  const askSeen = new Set<number>();
+  function askingFor(c: Car): boolean {
+    return race.duels.some(
+      (d) => d.state === 'choosing' && d.prompted && ((d.attacker === c.id && d.attack === null) || (d.defender === c.id && d.defend === null)),
+    );
+  }
+  function updateAsk() {
+    mine.forEach((c, i) => {
+      const ask = askingFor(c) && tv.followId !== c.id;
+      $(`card${i}`).classList.toggle('ask', ask);
+      if (ask) {
+        const d = race.duels.find((x) => x.state === 'choosing' && (x.attacker === c.id || x.defender === c.id));
+        if (d && !askSeen.has(d.id)) {
+          askSeen.add(d.id);
+          play('radio');
+        }
+      }
+    });
   }
 
   function stop() {
@@ -201,7 +230,9 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
     // single player at 4×: slow to 2× while the pit stop game runs, so the stop does not end before you finish
-    src.advance(dt, pitPlaying ? Math.min(speed, 2) : speed);
+    // 1× while the pit game is open and until that car is back on track, so you see it drive out
+    for (const id of pitWatch) if (race.cars.find((c) => c.id === id)?.status !== 'pit') pitWatch.delete(id);
+    src.advance(dt, pitPlaying || pitWatch.size ? Math.min(speed, 1) : speed);
     race = src.race;
     mine = mineCars();
     tv.drawRace(race, (c) => src.dist(c), isMine);
@@ -290,6 +321,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   const pitQueue: Car[] = [];
   const pitSeen = new Set<string>();
   let pitPlaying = false;
+  const pitWatch = new Set<string>();
 
   function updatePitGame() {
     for (const c of mine) {
@@ -303,6 +335,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     const c = pitQueue.shift()!;
     if (c.status !== 'pit' || !c.pitAwait) return;
     pitPlaying = true;
+    pitWatch.add(c.id);
     runPitGame(
       $('pitgame'),
       esc(t('pitTitle', { car: `#${c.num} ${surname(c.name)}` })),
@@ -322,6 +355,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     $('lapc').textContent = race.leaderFinished ? t('finish') : t('lapOf', { lap: leaderLap(race), laps: race.track.laps });
     $('scb').innerHTML = race.safetyCar.active ? `<div class="scbanner">${t('safetyCar')}</div>` : '';
     mine.forEach((c, i) => updateCard(c, i, st));
+    updateAsk();
     updateWeather();
     updateTower(st, leader);
     updateRadio();
@@ -414,7 +448,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       else gap = `+${num(Math.max(0, (leader.dist - c.dist) * c.lapTime))}`;
       const flag = (c.wingDamage ? '🪛' : '') + (c.engineDamage ? '⚙️' : '') + (c.status === 'running' && c.loss > 0 ? '⚠️' : c.pitPlan ? '📻' : '');
       const followed = tv.followId === c.id ? ' follow' : '';
-      return `<tr class="${isMine(c) ? 'me' : ''}${followed}" data-follow="${c.id}"><td class="p">${i + 1}</td>
+      const ask = isMine(c) && tv.followId !== c.id && askingFor(c) ? ' ask' : '';
+      return `<tr class="${isMine(c) ? 'me' : ''}${followed}${ask}" data-follow="${c.id}"><td class="p">${i + 1}</td>
         <td class="n"><span class="chip" style="background:${c.color}"></span><span class="tn">${c.num}</span><span class="nm">${esc(surname(c.name))}</span>${c.penalty ? `<span class="pen">+${c.penalty}s</span>` : ''}<span class="code">${shortName(c.name)}</span>${flag}</td>
         <td class="ty">${tyreIcon(c.tyre, true)}</td><td class="g">${gap}</td></tr>`;
     });
@@ -544,11 +579,13 @@ function suggestTyre(c: Car): Tyre {
 }
 
 function cardHTML(c: Car, i: number): string {
-  return `<div class="dcard" style="border-left-color:${c.color}">
-    <div class="crow" data-act="follow" data-d="${i}" title="🎥">
+  return `<div class="dcard" id="card${i}" style="border-left-color:${c.color}">
+    <div class="crow" data-act="follow" data-d="${i}">
       <span class="cpos" id="cpos${i}">P${c.grid}</span><span class="cname" title="${esc(c.name)}">#${c.num} ${esc(surname(c.name))}</span>
-      <span class="cdmg" id="cdmg${i}"></span><span class="cty" id="cty${i}"></span><span class="cfollow" id="cfollow${i}">🎥</span>
+      <span class="cdmg" id="cdmg${i}"></span><span class="cty" id="cty${i}"></span>
+      <span class="cfollow" id="cfollow${i}">🎥 <b>${t('camFollow')}</b></span>
     </div>
+    <div class="cask" data-act="follow" data-d="${i}">⚔️ ${t('duelTapHere')}</div>
     <div class="wbar"><i id="cwb${i}"></i></div>
     <div class="cinfo" id="cinfo${i}"></div>
     <div class="cwarn" id="cw${i}"></div>

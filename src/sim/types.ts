@@ -110,6 +110,10 @@ export interface Car extends CarSetup {
   pitAwait: boolean;
   /** Real seconds already waited for it. */
   pitHold: number;
+  /** Sim seconds the car has stood in the box during this stop. */
+  pitStood: number;
+  /** Pit lane exit speed (laps per sim second) when it differs from the limiter, else 0. */
+  pitOutV: number;
   pitTyre: Tyre | null;
   stops: number;
   /** Seconds still to lose from a mistake / failed attack / crash. */

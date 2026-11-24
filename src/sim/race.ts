@@ -62,6 +62,8 @@ export function createRace(cfg: RaceConfig): RaceState {
       decidedLap: -1,
       pitAwait: false,
       pitHold: 0,
+      pitStood: 0,
+      pitOutV: 0,
       pitTyre: null,
       stops: 0,
       loss: 0,
@@ -129,39 +131,56 @@ function rollSectors(skill: readonly number[], r: Rng, track: Track, t: Tuning):
   return out;
 }
 
-/** True inside a corner zone (around a key corner or a bend). */
-function inCorner(track: Track, frac: number, half: number): boolean {
-  for (const k of track.corners) if (Math.abs(((frac - k.at + 1.5) % 1) - 0.5) < half) return true;
-  for (const k of track.bends) if (Math.abs(((frac - k.at + 1.5) % 1) - 0.5) < half) return true;
-  return false;
+/** How much of a corner zone this spot is: 1 at a key corner / bend, fading smoothly to 0 at the zone edge. */
+function cornerWeight(track: Track, frac: number, half: number): number {
+  let w = 0;
+  for (const k of [...track.corners, ...track.bends]) {
+    const d = Math.abs(((frac - k.at + 1.5) % 1) - 0.5) / half;
+    if (d < 1) w = Math.max(w, 0.5 + 0.5 * Math.cos(d * Math.PI));
+  }
+  return w;
 }
 
-/** Share of the lap that is corner zone (cached per track), to balance dirty air against slipstream. */
+/** Average corner weight over the lap (cached per track), to balance dirty air against slipstream. */
 const cornerShareCache = new Map<string, number>();
 function cornerShare(track: Track, half: number): number {
   const key = `${track.id}:${half}`;
   let v = cornerShareCache.get(key);
   if (v === undefined) {
     let n = 0;
-    for (let i = 0; i < 1000; i++) if (inCorner(track, i / 1000, half)) n++;
+    for (let i = 0; i < 1000; i++) n += cornerWeight(track, i / 1000, half);
     v = Math.min(0.9, Math.max(0.1, n / 1000));
     cornerShareCache.set(key, v);
   }
   return v;
 }
 
-/** Extra time factor for this car right now: sector flow, plus dirty air / slipstream behind `ahead`. */
+/**
+ * Extra time factor for this car right now: sector flow (blended smoothly from sector to sector),
+ * plus dirty air / slipstream behind `ahead` (fading in smoothly as the gap closes).
+ */
 function flowFactor(c: Car, ahead: Car | undefined, race: RaceState): number {
   if (c.dist < 0) return 0;
   const t = race.tuning.flow;
+  const n = t.sectors;
   const frac = c.dist - Math.floor(c.dist);
-  let k = c.sectors[Math.min(t.sectors - 1, Math.floor(frac * t.sectors))] ?? 0;
+  // value at each sector's middle, blended in between; 0 at the line, where the next lap's values start
+  const x = frac * n - 0.5;
+  const i0 = Math.floor(x);
+  const u = x - i0;
+  const at = (i: number) => (i < 0 || i >= n ? 0 : c.sectors[i]);
+  const s = 0.5 - 0.5 * Math.cos(u * Math.PI);
+  let k = at(i0) * (1 - s) + at(i0 + 1) * s;
   if (ahead && !race.safetyCar.active) {
     const dd = ahead.dist - c.dist;
-    if (dd > 0 && dd < 0.5 && dd * c.lapTime < t.dirtyGap * lapScale(race.track)) {
+    const gap = dd * c.lapTime;
+    const full = t.dirtyGap * lapScale(race.track);
+    if (dd > 0 && dd < 0.5 && gap < full) {
+      const near = Math.min(1, (full - gap) / (full * 0.5));
       const cs = cornerShare(race.track, t.cornerHalf);
+      const w = cornerWeight(race.track, frac, t.cornerHalf);
       // close behind: slower in corners, faster on straights; zero on average over the lap
-      k += inCorner(race.track, frac, t.cornerHalf) ? t.dirtyCorner : -t.dirtyCorner * cs / (1 - cs);
+      k += (near * t.dirtyCorner * (w - cs)) / (1 - cs);
     }
   }
   return k;
@@ -242,8 +261,10 @@ export function step(race: RaceState, realDt = 0.1): void {
     if (c.status !== 'pit') continue;
     if (c.pitPhase === 'stop') {
       c.pitTimer -= dt;
+      c.pitStood += dt;
       if (c.pitTimer <= 0 && c.pitAwait) {
-        // the player is still playing the pit stop game: wait a little, then the crew does an average stop
+        // the player is still playing the pit stop game: the car stands until the game is done
+        // (after `maxHold` real seconds without a result the crew finishes with an average stop)
         c.pitHold += realDt;
         if (c.pitHold < t.pit.maxHold) continue;
         c.pitAwait = false;
@@ -251,6 +272,13 @@ export function step(race: RaceState, realDt = 0.1): void {
       if (c.pitTimer <= 0) {
         c.pitTimer = 0;
         c.pitPhase = 'out';
+        // Waiting for the game must not cost time: the stop counts as long as the game result says
+        // (`pitTotal`). Time stood beyond that is made up on the way out, still under the limiter.
+        const excess = c.pitStood - c.pitTotal;
+        if (excess > 0) {
+          const normal = t.pit.laneOut / pitLaneSpeed(race);
+          c.pitOutV = t.pit.laneOut / Math.max(normal * t.pit.minOutShare, normal - excess);
+        }
         c.tyre = c.pitTyre ?? c.tyre;
         c.pitTyre = null;
         c.cond = 1;
@@ -262,7 +290,7 @@ export function step(race: RaceState, realDt = 0.1): void {
       }
       continue;
     }
-    const v = pitLaneSpeed(race);
+    const v = c.pitPhase === 'out' && c.pitOutV > 0 ? c.pitOutV : pitLaneSpeed(race);
     c.speed = v;
     c.dist += v * dt;
     if (c.pitPhase === 'in' && c.dist >= c.lap + 1) {
@@ -275,6 +303,7 @@ export function step(race: RaceState, realDt = 0.1): void {
     } else if (c.pitPhase === 'out' && c.dist >= c.lap + t.pit.laneOut) {
       c.status = 'running';
       c.pitPhase = null;
+      c.pitOutV = 0;
       emit(race, 'pitOut', c, undefined, { tyre: c.tyre });
     }
   }
@@ -284,6 +313,9 @@ export function step(race: RaceState, realDt = 0.1): void {
   for (const c of running) c.lapTime = carLapTime(c, track, race.wetness, t);
 
   // ----- movement: nobody drives through the car ahead -----
+  // A car that comes close eases off smoothly to the speed of the car ahead (no sudden stops, so a
+  // queue of cars never jerks back and forth). It only gets past by winning a duel (then the two
+  // swap places; the track view shows the attacker driving past).
   const next = new Map<Car, number>();
   for (let i = 0; i < running.length; i++) {
     const c = running[i];
@@ -296,9 +328,21 @@ export function step(race: RaceState, realDt = 0.1): void {
       const aNext = next.get(a)!;
       // a car losing time from a mistake can be passed freely (except under the safety car);
       // lapped cars (a whole lap ahead in distance) never block.
-      if ((a.loss <= 0 || sc.active) && aNext - c.dist < 0.5) {
-        const maxD = aNext - t.duel.minGap / c.lapTime;
-        if (nd > maxD) nd = Math.max(c.dist, maxD);
+      // a car already right next to the one ahead (it was going past) is not blocked any more.
+      const alongside = (a.dist - c.dist) * c.lapTime < 0.15;
+      if ((a.loss <= 0 || sc.active) && aNext - c.dist < 0.5 && !alongside) {
+        const aV = Math.max(0, aNext - a.dist) / dt;
+        // gap after this step if the car kept its speed
+        const gap = (aNext - c.dist - v * dt) * c.lapTime;
+        const m = t.duel.minGap;
+        const soft = m * 1.6;
+        if (gap < soft) {
+          const w = clamp((soft - gap) / (soft - m * 0.7), 0, 1);
+          const target = Math.min(v, aV * (gap < m ? 0.9 + 0.1 * Math.max(0, gap) / m : 1));
+          nd = c.dist + (v + (target - v) * w) * dt;
+        }
+        // never through the car ahead
+        if (nd > aNext - 0.02 / c.lapTime) nd = Math.max(c.dist, aNext - 0.02 / c.lapTime);
       }
     }
     next.set(c, nd);
@@ -383,7 +427,13 @@ function enterPits(race: RaceState, c: Car): void {
   if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) stop += t.pit.doubleStack;
   const loss = race.track.pitLoss * t.pitLossScale + stop - t.pit.avgStop;
   c.pitHold = 0;
-  c.pitAwait = !!c.pitGame && c.human && !c.autopilot;
+  c.pitStood = 0;
+  c.pitOutV = 0;
+  // the player plays the pit game – but not for the second car while the team mate is still
+  // in the pit lane: that stop is done by the crew (a slightly slow one, they are busy)
+  const mateIn = race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit');
+  c.pitAwait = !!c.pitGame && c.human && !c.autopilot && !mateIn;
+  if (!!c.pitGame && c.human && !c.autopilot && mateIn) stop += t.pit.busyCrew;
   if (!c.pitAwait) {
     // crew performance: usually close to average, sometimes a fumble
     stop += gauss(c.rng) * t.pit.crewSpread + (chance(c.rng, t.pit.crewFumble) ? t.pit.fumbleLoss : 0);
@@ -493,8 +543,8 @@ function startDuel(race: RaceState, att: Car, def: Car): void {
   att.closeTime = 0;
   race.duelCooldown[key] = att.dist + 1;
   if (att.human || def.human) emit(race, 'duelStart', att, def, { duel: duel.id });
-  // AI-only duels are decided at once
-  if (!duel.prompted) decideDuel(race, duel);
+  // AI-only duels are decided at the end of this tick (resolveDuels), after the cars have moved:
+  // deciding here, in the middle of the tick, let the movement step undo a pass at once.
 }
 
 function resolveDuels(race: RaceState): void {
@@ -760,8 +810,9 @@ export function applyCommand(race: RaceState, cmd: Command): boolean {
       const sec = clamp(Number(cmd.seconds) || race.tuning.pit.avgStop, 1.5, 15);
       car.pitAwait = false;
       // the game result replaces the average stop (still in the pit lane or already standing)
-      if (car.pitPhase === 'stop') car.pitTimer += sec - race.tuning.pit.avgStop;
-      else car.pitTotal = Math.max(1.5, car.pitTotal + sec - race.tuning.pit.avgStop);
+      const total = Math.max(1.5, car.pitTotal + sec - race.tuning.pit.avgStop);
+      if (car.pitPhase === 'stop') car.pitTimer += total - car.pitTotal;
+      car.pitTotal = total;
       emit(race, 'pitStopTime', car, undefined, { seconds: Math.round(sec * 10) / 10 });
       return true;
     }

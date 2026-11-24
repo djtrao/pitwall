@@ -166,12 +166,12 @@ describe('pit stop game', () => {
     }
     expect(seen.size).toBeGreaterThan(15); // 24 possible orders
   });
-  it('picks 4 of the 8 spots, always including damaged parts, in a random order', () => {
+  it('picks 6 of the 8 spots, always including damaged parts, in a random order', () => {
     const all = new Set<string>();
     for (let i = 0; i < 300; i++) {
       const s = pickSpots();
-      expect(s).toHaveLength(4);
-      expect(new Set(s).size).toBe(4);
+      expect(s).toHaveLength(6);
+      expect(new Set(s).size).toBe(6);
       s.forEach((x) => all.add(x));
       expect(pickSpots(['fw', 'en'])).toEqual(expect.arrayContaining(['fw', 'en']));
     }

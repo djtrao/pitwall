@@ -30,7 +30,7 @@ export const DEFAULT_TUNING = {
     badChance: 0.35,
     bad: [0.3, 0.7] as [number, number],
     /** Closer than this (s) behind a car: dirty air in corners, slipstream on straights. */
-    dirtyGap: 1.2,
+    dirtyGap: 1.6,
     dirtyCorner: 0.03,
     /** Half the length of a corner zone around each key corner / bend (lap share). */
     cornerHalf: 0.035,
@@ -95,9 +95,9 @@ export const DEFAULT_TUNING = {
 
   duel: {
     /** Gap (s) that counts as "close" for starting a duel. */
-    closeGap: 0.8,
-    /** A faster car can close up to this gap (s), then must win a duel. */
-    minGap: 0.4,
+    closeGap: 1.2,
+    /** A faster car can close up to about this gap (s, about one car length on screen), then must win a duel. */
+    minGap: 0.8,
     /** Share of a lap the attacker must stay close before a duel starts. */
     closeLaps: 0.35,
     /** Real seconds a human has to choose. */
@@ -165,8 +165,12 @@ export const DEFAULT_TUNING = {
     crewSpread: 0.25,
     crewFumble: 0.05,
     fumbleLoss: 2,
-    /** Real seconds the car waits for the pit stop game before the crew does an average stop. */
-    maxHold: 3,
+    /** Real seconds the car waits in the box for the pit stop game before the crew does an average stop. */
+    maxHold: 12,
+    /** Waiting for the game is made up on the way out, but the exit takes at least this share of its normal time. */
+    minOutShare: 0.75,
+    /** Second car of a player's team while the first is still in the pit lane: crew stop, a bit slow (s). */
+    busyCrew: 0.4,
     /** Second car of a team waits behind the first. */
     doubleStack: 3,
   },
@@ -181,7 +185,7 @@ export const DEFAULT_TUNING = {
   },
 
   /** Spreads the AI teams' pace (1 = the values in teams.ts). Bigger = the field splits into groups. */
-  aiPaceSpread: 1.6,
+  aiPaceSpread: 0.8,
 
   /** Multiplies every track's pit stop time loss (1 = spec values). */
   pitLossScale: 1,

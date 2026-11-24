@@ -212,14 +212,14 @@ describe('safety car (7.6)', () => {
     const underSc = lossWith({ lap: 1, laps: 1.5, at: 0.5 });
     expect(underSc).toBeLessThan(normal - 4);
   });
-  it('bunches the field up to about 0.4 s apart', () => {
+  it('bunches the field up to about the minimum gap apart', () => {
     const race = fullRace(4);
     const cfg = { ...cfgFrom(race), weather: dryWeather(RHEIN.laps), safetyCar: { lap: 5, laps: 4 } };
     const r = createRace(cfg);
     while (r.safetyCar.count === 0 || r.safetyCar.active) step(r);
     const order = standings(r).filter((c) => c.status === 'running');
     const spread = (order[0].dist - order[order.length - 1].dist) * RHEIN.base;
-    expect(spread).toBeLessThan(0.45 * 11 + 3);
+    expect(spread).toBeLessThan(RHEIN_TUNING.duel.minGap * 11 + 3);
   });
 });
 
@@ -308,6 +308,38 @@ describe('pit stop game', () => {
     }
     expect(c.status).toBe('running');
   });
+  it('the car waits in the box until the game is done, and the wait is made up on the way out', () => {
+    const run = (waitReal: number) => {
+      const r = soloRace({}, { pitGame: true });
+      applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+      const c = r.cars[0];
+      while (c.pitPhase !== 'stop') step(r);
+      for (let i = 0; i < waitReal * 10; i++) {
+        step(r);
+        expect(c.pitPhase).toBe('stop');
+      }
+      applyCommand(r, { type: 'pitStop', car: 'me-1', seconds: 2.6, unsafe: false });
+      while (c.status === 'pit') step(r);
+      return r.time;
+    };
+    // waiting 1 more real second for the game costs (almost) nothing compared with an instant answer
+    expect(run(1) - run(0)).toBeLessThan(0.3);
+  });
+  it('the second car of the team gets a crew stop while the first is still in the pit lane', () => {
+    const r = createRace({
+      seed: 3,
+      track: RHEIN,
+      cars: [humanCar('me-1', { pitGame: true }), humanCar('me-2', { pitGame: true, num: 8 })],
+      weather: dryWeather(RHEIN.laps),
+      safetyCar: null,
+      tuning: makeTuning({ noise: 0 }),
+    });
+    applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
+    applyCommand(r, { type: 'pit', car: 'me-2', tyre: 'M' });
+    while (!r.cars.every((c) => c.status === 'pit')) step(r);
+    // whoever came in first plays the game, the other gets the crew stop
+    expect(r.cars.filter((c) => c.pitAwait)).toHaveLength(1);
+  });
   it('there is no time penalty from the pit stop game', () => {
     const r = soloRace({}, { pitGame: true });
     applyCommand(r, { type: 'pit', car: 'me-1', tyre: 'M' });
@@ -355,9 +387,11 @@ describe('duels (7.5)', () => {
     while (r.cars[0].lap < 6) {
       step(r);
       const [a, b] = r.cars;
-      if (b.dist < a.dist && b.dist > 0) minGap = Math.min(minGap, (a.dist - b.dist) * b.lapTime);
+      // (from lap 2 on: the grid slots are closer; not right after a won duel,
+      // or past a car that made a mistake)
+      if (b.dist < a.dist && b.dist > 1 && a.loss <= 0 && !r.events.some((e) => e.kind === 'pass' && r.time - e.time < 15)) minGap = Math.min(minGap, (a.dist - b.dist) * b.lapTime);
     }
-    expect(minGap).toBeGreaterThan(0.35);
+    expect(minGap).toBeGreaterThan(RHEIN_TUNING.duel.minGap * 0.75);
     expect(r.events.some((e) => e.kind === 'duelStart')).toBe(true);
     expect(r.events.some((e) => e.kind === 'pass')).toBe(true);
   });

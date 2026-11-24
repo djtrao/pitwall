@@ -23,6 +23,7 @@ const KERB = '#e86a17';
 // pit lane from just before the line to just after it (same numbers as the simulation)
 const PIT_FROM = -DEFAULT_TUNING.pit.laneIn;
 const PIT_TO = DEFAULT_TUNING.pit.laneOut;
+const PIT_IN = DEFAULT_TUNING.pit.laneIn;
 
 function buildTrack(pts: [number, number][]): [number, number][] {
   const dense: [number, number][] = [];
@@ -74,6 +75,14 @@ export class TrackView {
   private gapFix = new Map<string, number>();
   /** Side an attacking car has moved to (kept until the attack is over). */
   private side = new Map<string, number>();
+  /** After a won duel: how far (lap share) the attacker is still drawn behind its real spot, and whom it passes. */
+  private lag = new Map<string, number>();
+  private passVis = new Map<string, string>();
+  private lastShown = new Map<string, number>();
+  private lastEvent = 0;
+  /** Box position per team along the pit lane, and the distance between two boxes (lap share). */
+  private boxSlot = new Map<string, number>();
+  private boxGap = 0;
   /** Length of the drawn centre line (px). */
   private perim = 1;
   private dpr = 1;
@@ -126,8 +135,8 @@ export class TrackView {
     });
     const p = this.scr[0], nn = this.nrm[0];
     this.inSign = this.inside([p[0] + nn[0] * 20, p[1] + nn[1] * 20]) ? 1 : -1;
-    // a wide road: two cars fit side by side, like in real F1
-    this.tw = Math.max(13, dw * 0.044);
+    // a wide road with small cars, like in real F1
+    this.tw = Math.max(14, dw * 0.048);
     this.perim = this.scr.reduce((sum, p, i) => {
       const q = this.scr[(i + 1) % N];
       return sum + Math.hypot(q[0] - p[0], q[1] - p[1]);
@@ -429,7 +438,15 @@ export class TrackView {
       const fromStart = fr > 0.5 ? fr - (1 + PIT_FROM) : fr - PIT_FROM;
       const toEnd = PIT_TO - (fr > 0.5 ? fr - 1 : fr);
       const edge = Math.min(1, Math.max(0, Math.min(fromStart, toEnd) / 0.012));
-      return { f: dist, lat: this.pitLat * edge };
+      // every team has its own box along the pit lane (the simulation stops all cars at the line)
+      const slot = this.boxSlot.get(car.teamId) ?? 0;
+      const second = car.id.endsWith('-2');
+      const off = (slot - (this.boxSlot.size - 1) / 2) * this.boxGap + (second ? -this.boxGap * 0.35 : 0);
+      const box = car.lap + 1;
+      let k = 1;
+      if (car.pitPhase === 'in') k = Math.min(1, Math.max(0, (dist - (box - PIT_IN)) / PIT_IN));
+      else if (car.pitPhase === 'out') k = Math.min(1, Math.max(0, 1 - (dist - box) / PIT_TO));
+      return { f: dist + off * k, lat: this.pitLat * edge * (second ? 1.35 : 1) };
     }
     return { f: dist, lat: 0 };
   }
@@ -438,6 +455,33 @@ export class TrackView {
   drawRace(race: RaceState, dist: (c: Car) => number, mine: (c: Car) => boolean): void {
     const c = this.ctx;
     const cars = race.cars.filter((x) => x.status !== 'dnf').sort((a, b) => dist(a) - dist(b));
+    // A won duel swaps the two cars in the simulation at once. Here the attacker is held back at
+    // the spot where it was drawn and then catches up over about a second and a half: it drives
+    // past the defender on the inside instead of jumping ahead.
+    for (const e of race.events) {
+      if (e.id <= this.lastEvent) continue;
+      this.lastEvent = e.id;
+      if (e.kind !== 'pass' || !e.car || !e.other) continue;
+      const att = cars.find((x) => x.id === e.car);
+      const def = cars.find((x) => x.id === e.other);
+      const was = this.lastShown.get(e.car);
+      if (!att || !def || was === undefined) continue;
+      const lag = Math.min(0, was - dist(att));
+      if (lag < 0 && lag > -0.05) {
+        this.lag.set(att.id, lag);
+        this.passVis.set(att.id, def.id);
+      }
+    }
+    for (const [id, l] of this.lag) {
+      const nl = l * 0.965;
+      if (nl > -0.0003) {
+        this.lag.delete(id);
+        this.passVis.delete(id);
+      } else this.lag.set(id, nl);
+    }
+    const lagOf = (car: Car) => this.lag.get(car.id) ?? 0;
+    if (!this.boxSlot.size) for (const car of race.cars) if (!this.boxSlot.has(car.teamId)) this.boxSlot.set(car.teamId, this.boxSlot.size);
+    this.boxGap = Math.min(((PIT_IN + PIT_TO) * 0.7) / Math.max(1, this.boxSlot.size), (this.carLen / this.perim) * 1.5);
     // Every driver drives their own line: a slow personal drift across the racing line. Only a car
     // that is really attacking (sitting close behind for a while) moves out of the slipstream to one
     // side and stays there until the attack is over. A car never overlaps the one ahead of it: if the
@@ -454,7 +498,11 @@ export class TrackView {
       const d = dist(car);
       const ph = car.num * 2.399; // golden angle: every car has a different phase
       let t = this.tw * 0.13 * (0.6 * Math.sin(d * Math.PI * 2 * 2.3 + ph) + 0.4 * Math.sin(d * Math.PI * 2 * 5.1 + ph * 1.7));
-      if (car.closeTo) {
+      if (car.loss > 0) {
+        // a mistake: the car runs wide and the others go past on the inside
+        t = this.outside(d) * this.tw * 0.32;
+        this.side.delete(car.id);
+      } else if (car.closeTo || this.passVis.has(car.id)) {
         let sd = this.side.get(car.id);
         if (sd === undefined) {
           sd = -this.outside(d + 0.03); // the inside of what comes next
@@ -470,23 +518,28 @@ export class TrackView {
     const order = [...cars].reverse(); // leader first
     for (let i = 0; i < order.length; i++) {
       const car = order[i];
-      let v = dist(car);
+      let v = dist(car) + lagOf(car);
       if (car.status === 'running') {
         const la = this.lat.get(car.id) ?? 0;
         for (let j = i - 1; j >= 0 && j >= i - 3; j--) {
           const o = order[j];
-          if (o.status !== 'running') continue;
-          if (Math.abs((this.lat.get(o.id) ?? 0) - la) < cw * 1.1) v = Math.min(v, vis.get(o.id)! - cf * 1.08);
+          // cars going past (a won duel, or a car that made a mistake) are not held back
+          const passing = this.passVis.get(car.id) === o.id || this.passVis.get(o.id) === car.id;
+          if (o.status !== 'running' || o.loss > 0 || passing || car.loss > 0) continue;
+          // the more the two overlap sideways, the more room is kept (smooth, no on/off switching)
+          const overlap = Math.min(1, Math.max(0, (cw * 1.3 - Math.abs((this.lat.get(o.id) ?? 0) - la)) / (cw * 0.6)));
+          if (overlap > 0) v = Math.min(v, vis.get(o.id)! - cf * 1.05 * overlap);
         }
       }
       vis.set(car.id, v);
     }
     for (const car of cars) {
-      const fix = vis.get(car.id)! - dist(car);
+      const fix = vis.get(car.id)! - dist(car) - lagOf(car);
       const g = this.gapFix.get(car.id) ?? 0;
-      this.gapFix.set(car.id, g + (fix - g) * (fix < g ? 0.35 : 0.1));
+      this.gapFix.set(car.id, g + (fix - g) * 0.12);
     }
-    const shown = (car: Car) => dist(car) + (this.gapFix.get(car.id) ?? 0);
+    const shown = (car: Car) => dist(car) + lagOf(car) + (this.gapFix.get(car.id) ?? 0);
+    for (const car of cars) this.lastShown.set(car.id, shown(car));
     const pos = new Map<string, [number, number]>();
     for (const car of cars) {
       const p = this.carPosition(car, car.status === 'pit' ? dist(car) : shown(car));
