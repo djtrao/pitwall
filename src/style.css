@@ -247,7 +247,6 @@ table.res td:nth-child(3) .pill { display: block; width: max-content; margin: 2p
 .pg-wheel.lit { background: #ffd200; border-color: #fff; color: #000; box-shadow: 0 0 18px #ffd200; animation: pulse 0.4s infinite; }
 .pg-wheel.done { background: #2a6; border-color: #5f5; color: #fff; }
 .pg-wheel.wrong { background: #c33; color: #fff; }
-  background: #222; border: 3px solid #555; }
 .pg-result { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
   background: rgba(10, 12, 17, 0.9); border-radius: 12px; gap: 4px; }
 .pg-result.show { display: flex; }
