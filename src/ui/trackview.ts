@@ -80,6 +80,27 @@ export class TrackView {
   private passVis = new Map<string, string>();
   private lastShown = new Map<string, number>();
   private lastEvent = 0;
+  /** Where each car was drawn last frame (world coordinates), for tapping a car. */
+  private drawn: { id: string; p: [number, number] }[] = [];
+
+  /** The car under a tap at canvas position (x, y) in CSS px, or null. */
+  carAt(x: number, y: number): string | null {
+    const wx = (x - this.w / 2) / this.cam.z + this.cam.x;
+    const wy = (y - this.h / 2) / this.cam.z + this.cam.y;
+    // generous: a finger (or mouse) about 22 screen px around the car counts
+    const r = Math.max(this.carLen * 0.9, 22 / this.cam.z);
+    let best: string | null = null;
+    let bd = r;
+    for (const d of this.drawn) {
+      const dd = Math.hypot(d.p[0] - wx, d.p[1] - wy);
+      if (dd < bd) {
+        bd = dd;
+        best = d.id;
+      }
+    }
+    return best;
+  }
+
   /** Box position per team along the pit lane, and the distance between two boxes (lap share). */
   private boxSlot = new Map<string, number>();
   private boxGap = 0;
@@ -545,6 +566,8 @@ export class TrackView {
       const p = this.carPosition(car, car.status === 'pit' ? dist(car) : shown(car));
       pos.set(car.id, this.xy(p.f, p.lat !== 0 ? p.lat : this.lat.get(car.id) ?? 0));
     }
+
+    this.drawn = cars.filter((x) => x.status === 'running' || x.status === 'pit').map((x) => ({ id: x.id, p: pos.get(x.id)! }));
 
     // camera: glide towards the followed car (zoomed in) or the whole track
     const followed = this.followId ? pos.get(this.followId) : undefined;

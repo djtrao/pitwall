@@ -1,4 +1,5 @@
 import type { Rng } from './rng';
+import type { Perks } from './cards';
 import type { Tuning } from './tuning';
 
 export type Tyre = 'S' | 'M' | 'H' | 'W';
@@ -77,6 +78,8 @@ export interface CarSetup {
   /** A player plays the pit stop game for this car. */
   pitGame?: boolean;
   ai?: AiProfile;
+  /** Driver cards (optional): small bonuses, see cards.ts. */
+  perks?: Perks;
 }
 
 export type CarStatus = 'running' | 'pit' | 'finished' | 'dnf';

@@ -77,4 +77,4 @@ npm run dev
 
 ## Grafik und Töne
 
-Autos, Streckendeko, Symbole und Soundeffekte stammen aus den Packs von **Kenney** (www.kenney.nl, Lizenz CC0 – frei nutzbar). Sie liegen in `public/kenney/`.
+Autos, Streckendeko, Symbole und Soundeffekte stammen aus den Packs von **Kenney** (www.kenney.nl, Lizenz CC0 – frei nutzbar). Sie liegen in `public/kenney/`. Die Töne `wrench`, `passup`, `passdown`, `qgreen`, `qyellow` und `qmiss` in `public/kenney/sfx/` sind für Pit Wall selbst erzeugt (mit ffmpeg).

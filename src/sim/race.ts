@@ -379,7 +379,7 @@ export function step(race: RaceState, realDt = 0.1): void {
     const dDist = Math.max(0, nd - Math.max(0, c.dist));
     c.dist = nd;
     if (c.dist <= 0) continue; // still behind the start line
-    c.cond = Math.max(0, c.cond - wearPerLap(c.tyre, c.mode, race.wetness, track, t, sc.active) * dDist);
+    c.cond = Math.max(0, c.cond - wearPerLap(c.tyre, c.mode, race.wetness, track, t, sc.active) * (c.perks?.wear ?? 1) * dDist);
     if (c.loss > 0) c.loss = Math.max(0, c.loss - dt * (1 - t.mistakes.slowFactor));
     else if (!sc.active && rand(c.rng) < mistakeChance(c, race.wetness, t) * lapScale(track) * dDist) makeMistake(race, c);
   }
@@ -423,7 +423,7 @@ function enterPits(race: RaceState, c: Car): void {
   c.pitTyre = c.pitPlan;
   c.pitPlan = null;
   // standing time: average stop (+ repairs, + waiting for the team mate)
-  let stop = t.pit.avgStop + (c.wingDamage ? t.duel.wingPitExtra : 0) + (c.engineDamage ? t.damage.enginePitExtra : 0);
+  let stop = t.pit.avgStop + (c.wingDamage ? t.duel.wingPitExtra : 0) + (c.engineDamage ? t.damage.enginePitExtra : 0) + (c.perks?.pit ?? 0);
   if (race.cars.some((o) => o !== c && o.teamId === c.teamId && o.status === 'pit')) stop += t.pit.doubleStack;
   const loss = race.track.pitLoss * t.pitLossScale + stop - t.pit.avgStop;
   c.pitHold = 0;
@@ -578,11 +578,13 @@ export const NO_MODS: DuelMods = { attRisk: 1, defRisk: 1, baseRisk: 0, pass: 0 
 export function duelMods(tuning: Tuning, att: Car, def: Car): DuelMods {
   const d = tuning.damage;
   return {
-    attRisk: att.wingDamage ? d.wingRisk : 1,
-    defRisk: def.wingDamage ? d.wingRisk : 1,
+    attRisk: (att.wingDamage ? d.wingRisk : 1) * (att.perks?.risk ?? 1),
+    defRisk: (def.wingDamage ? d.wingRisk : 1) * (def.perks?.risk ?? 1),
     baseRisk: (att.wingDamage ? d.wingBaseRisk : 0) + (def.wingDamage ? d.wingBaseRisk : 0),
     pass:
-      -(att.wingDamage ? d.wingPass : 0) - (att.engineDamage ? d.enginePass : 0) + (def.wingDamage ? d.wingPass : 0) + (def.engineDamage ? d.enginePass : 0),
+      -(att.wingDamage ? d.wingPass : 0) - (att.engineDamage ? d.enginePass : 0) + (def.wingDamage ? d.wingPass : 0) + (def.engineDamage ? d.enginePass : 0) +
+      (att.perks?.pass ?? 0) -
+      (def.perks?.defend ?? 0),
   };
 }
 

@@ -130,6 +130,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     </div>`;
 
   const tv = new TrackView($('cv') as HTMLCanvasElement, race.track);
+  // dev server only: lets the browser tests find cars on the track
+  if (import.meta.env.DEV) (window as unknown as { __tv: TrackView }).__tv = tv;
   const onResize = () =>
     requestAnimationFrame(() => {
       tv.fit();
@@ -138,7 +140,10 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   window.addEventListener('resize', onResize);
   screen.orientation?.addEventListener?.('change', onResize);
 
-  $('spd').onclick = (e) => {
+  // all race controls react on press (pointerdown): the panels are redrawn several times a second,
+  // and a mouse click whose press and release land on two different drawings is dropped by the browser
+  $('spd').onpointerdown = (e) => {
+    if (e.button !== 0) return;
     const b = (e.target as HTMLElement).closest('button');
     if (!b) return;
     speed = Number(b.dataset.s);
@@ -147,7 +152,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   };
   const unwireFs = wireFullscreen(app, onResize);
 
-  $('cards').onclick = (e) => {
+  $('cards').onpointerdown = (e) => {
+    if (e.button !== 0) return;
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!b) return;
     const c = mine[Number(b.dataset.d)];
@@ -170,20 +176,27 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   };
 
   // tap a timing tower row to follow that car, tap again (or the track) to see the whole track
-  $('tower').onclick = (e) => {
+  $('tower').onpointerdown = (e) => {
+    if (e.button !== 0) return;
     const row = (e.target as HTMLElement).closest<HTMLElement>('[data-follow]');
     if (!row) return;
     const c = race.cars.find((x) => x.id === row.dataset.follow);
     follow(tv.followId === row.dataset.follow && !(c && askingFor(c)) ? null : row.dataset.follow!);
   };
-  $('cv').onclick = () => follow(null);
+  // tap a car on the track to follow it, tap the track elsewhere to see the whole track
+  $('cv').onpointerdown = (e) => {
+    if (e.button !== 0) return;
+    const id = tv.carAt(e.offsetX, e.offsetY);
+    const c = id ? race.cars.find((x) => x.id === id) : undefined;
+    follow(id && !(tv.followId === id && !(c && askingFor(c))) ? id : null);
+  };
 
   function follow(id: string | null) {
     tv.followId = id;
     mine.forEach((c, i) => {
       const on = c.id === id;
       $(`cfollow${i}`).classList.toggle('on', on);
-      $(`cfollow${i}`).innerHTML = `🎥 <b>${on ? t('camOverview') : t('camFollow')}</b>`;
+      setHTML($(`cfollow${i}`), `🎥 <b>${on ? t('camOverview') : t('camFollow')}</b>`);
     });
     updateUI();
   }
@@ -293,7 +306,8 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       const caption = { pass: t('outPass'), fail: t('outHeld'), crash: t('outCrash'), spin: t('outSpin'), off: t('outOff'), wait: t('outWait') }[d.outcome as 'pass'];
       const aName = t(`att${d.attack ?? 0}` as StringKey);
       const dName = t(`def${d.defend ?? 0}` as StringKey);
-      const sound = ({ pass: 'pass', crash: 'crash', spin: 'bump', off: 'bump', fail: 'select' } as const)[d.outcome as 'pass'];
+      // (a pass gets its jingle when it counts, see updateRadio)
+      const sound = ({ crash: 'crash', spin: 'bump', off: 'bump', fail: 'select' } as const)[d.outcome as 'crash'];
       if (sound) window.setTimeout(() => play(sound), race.tuning.duel.showSeconds * 400);
       dv.play(d.outcome, caption ?? '', race.tuning.duel.showSeconds, t('duelChoices', { a: `${ATTACK_ICON[d.attack ?? 0]} ${aName}`, d: `${DEFEND_ICON[d.defend ?? 0]} ${dName}` }));
     }
@@ -353,7 +367,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     const st = standings(race);
     const leader = st[0];
     $('lapc').textContent = race.leaderFinished ? t('finish') : t('lapOf', { lap: leaderLap(race), laps: race.track.laps });
-    $('scb').innerHTML = race.safetyCar.active ? `<div class="scbanner">${t('safetyCar')}</div>` : '';
+    setHTML($('scb'), race.safetyCar.active ? `<div class="scbanner">${t('safetyCar')}</div>` : '');
     mine.forEach((c, i) => updateCard(c, i, st));
     updateAsk();
     updateWeather();
@@ -365,9 +379,9 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
   function updateCard(c: Car, i: number, st: Car[]) {
     const pos = st.indexOf(c);
     $(`cpos${i}`).textContent = `P${pos + 1}`;
-    $(`cty${i}`).innerHTML = `${tyreIcon(c.tyre)} <b>${Math.round(c.cond * 100)}%</b>`;
+    setHTML($(`cty${i}`), `${tyreIcon(c.tyre)} <b>${Math.round(c.cond * 100)}%</b>`);
     // damage always visible in the card head (also in fullscreen)
-    $(`cdmg${i}`).innerHTML = damageBadges(c);
+    setHTML($(`cdmg${i}`), damageBadges(c));
     $(`cdmg${i}`).parentElement!.parentElement!.classList.toggle('damaged', c.wingDamage || c.engineDamage);
     const wb = $(`cwb${i}`);
     wb.style.width = `${Math.round(c.cond * 100)}%`;
@@ -386,7 +400,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     }
     $(`cinfo${i}`).textContent = info;
     for (let k = 0; k < 4; k++) $(`cm${i}_${k}`).classList.toggle('on', c.mode === k);
-    $(`cs${i}`).innerHTML = `${tyreIcon(sel.get(c.id)!)}<small>${tyreName(sel.get(c.id)!)}</small>`;
+    setHTML($(`cs${i}`), `${tyreIcon(sel.get(c.id)!)}<small>${tyreName(sel.get(c.id)!)}</small>`);
     const bb = $(`cb${i}`);
     bb.classList.toggle('on', !!c.pitPlan);
     bb.textContent = c.pitPlan ? t('boxing') : t('box');
@@ -421,20 +435,20 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     const state = r > 0.55 ? t('heavyRain') : r > 0 ? t('lightRain') : race.wetness > 5 ? t('dryWet') : t('dry');
     const bar = `<div class="wetbar"><i style="width:${race.wetness}%"></i><span class="x" style="left:${cross}%"></span></div>`;
     // compact version for the bottom bar (landscape)
-    $('wxbar').innerHTML = `
+    setHTML($('wxbar'), `
       <span class="wx-icon">${icon}</span>
       <div class="wx-wet" title="${t('crossover', { w: cross })}"><span class="small">${t('wetness')} <b>${Math.round(race.wetness)} %</b></span>${bar}</div>
       <div class="wx-fc">${blocks
         .slice(0, 3)
         .map((b) => `<span><small>${t('lapShort')}${b.fromLap === b.toLap ? b.fromLap : `${b.fromLap}–${b.toLap}`}</small><b>${b.chance}%</b></span>`)
-        .join('')}</div>`;
+        .join('')}</div>`);
     // full panel (portrait)
-    $('wx').innerHTML = `<h3>${t('weather')}</h3>
+    setHTML($('wx'), `<h3>${t('weather')}</h3>
       <div><b>${state}</b> · ${t('wetness')} <b>${Math.round(race.wetness)} %</b></div>
       ${bar}
       <div class="hint">${t('crossover', { w: cross })}</div>
       <div class="hint mt">${t('forecast')}:</div>
-      <div class="fc">${blocks.map((b) => `<div class="fcb"><small>${t('lap')} ${b.fromLap === b.toLap ? b.fromLap : `${b.fromLap}–${b.toLap}`}</small><b>${b.chance} %</b></div>`).join('')}</div>`;
+      <div class="fc">${blocks.map((b) => `<div class="fcb"><small>${t('lap')} ${b.fromLap === b.toLap ? b.fromLap : `${b.fromLap}–${b.toLap}`}</small><b>${b.chance} %</b></div>`).join('')}</div>`);
   }
 
   function updateTower(st: Car[], leader: Car) {
@@ -453,7 +467,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
         <td class="n"><span class="chip" style="background:${c.color}"></span><span class="tn">${c.num}</span><span class="nm">${esc(surname(c.name))}</span>${c.penalty ? `<span class="pen">+${c.penalty}s</span>` : ''}<span class="code">${shortName(c.name)}</span>${flag}</td>
         <td class="ty">${tyreIcon(c.tyre, true)}</td><td class="g">${gap}</td></tr>`;
     });
-    $('tower').innerHTML = `<table>${rows.join('')}</table>`;
+    setHTML($('tower'), `<table>${rows.join('')}</table>`);
   }
 
   function updateRadio() {
@@ -473,7 +487,13 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       newest = m;
     }
     while (box.childElementCount > 12) box.lastElementChild!.remove();
-    if (newest?.mine) play('radio');
+    // overtaking: a happy jingle when one of your cars gets past, a sad one when it is passed
+    const isMineId = (id?: string) => !!id && mine.some((c) => c.id === id);
+    const passUp = fresh.some((e) => e.kind === 'pass' && isMineId(e.car));
+    const passDown = fresh.some((e) => e.kind === 'pass' && isMineId(e.other) && !isMineId(e.car));
+    if (passUp) play('passup');
+    else if (passDown) play('passdown');
+    else if (newest?.mine) play('radio');
     if (newest) {
       const tk = $('ticker');
       tk.textContent = `📻 ${newest.text}`;
@@ -570,6 +590,14 @@ function damageBadges(c: Car): string {
 function surname(name: string): string {
   const w = name.trim().split(/\s+/);
   return w[w.length - 1] || name;
+}
+
+/** Set an element's HTML only when it changed (redrawing kills clicks and hover). */
+const lastHTML = new WeakMap<Element, string>();
+function setHTML(el: HTMLElement, html: string): void {
+  if (lastHTML.get(el) === html) return;
+  lastHTML.set(el, html);
+  el.innerHTML = html;
 }
 
 /** Default tyre for the next stop: a different dry compound than the current one. */

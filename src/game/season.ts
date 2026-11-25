@@ -19,6 +19,8 @@ export interface Season {
   driverPts: Record<string, number>;
   teamPts: Record<string, number>;
   results: RoundResult[];
+  /** Driver cards collected this season, per car id (only with the cards option). */
+  cards?: Record<string, string[]>;
 }
 
 /** Pick `count` different tracks in a random order. */
