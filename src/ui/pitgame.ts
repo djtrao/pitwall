@@ -152,7 +152,7 @@ export function runPitGame(
       if (b.dataset.w === order[idx]) {
         times.push((performance.now() - litAt) / 1000);
         b.classList.add('done');
-        play('gun');
+        play('wrench');
         clearTimeout(timer);
         nextWheel();
       } else {

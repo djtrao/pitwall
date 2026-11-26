@@ -1,7 +1,7 @@
 import { getLang, setLang, t } from '../i18n';
 import { BUILD } from '../version';
 import type { Season } from '../game/season';
-import { loadSeason, loadTeam } from '../game/store';
+import { loadSeason, loadSettings, loadTeam, saveSettings } from '../game/store';
 import { TRACKS, type Track } from '../sim';
 import { $, esc, trackDesc } from '../ui/common';
 import { lastGame } from './multi';
@@ -24,6 +24,7 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
   const render = () => {
     const team = loadTeam();
     const saved = loadSeason();
+    const settings = loadSettings();
     app.innerHTML = `
       <div class="row-between">
         <h1>🏁 ${t('appTitle')} <span class="ver">v${BUILD}</span></h1>
@@ -52,6 +53,11 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
           ${lastGame() ? `<button class="big" id="rejoin" style="background:#2a7a3a">🔄 ${t('mpRejoin', { code: lastGame()! })}</button>` : ''}
           <button class="big" id="multi" style="background:#1f4fbf">${t('mMulti')}</button>
         </div>
+        <div class="panel">
+          <h3>⚙️ ${t('mOptions')}</h3>
+          <button class="opt${settings.cards ? ' on' : ''}" id="optcards"><b>${t('optCards')}</b><small>${t('optCardsHint')}</small></button>
+          <button class="opt mt${settings.skipQuali ? ' on' : ''}" id="optskip"><b>${t('optSkipQuali')}</b><small>${t('optSkipQualiHint')}</small></button>
+        </div>
         <div class="panel quickpanel">
           <h3>🏎️ ${t('mQuickRace')}</h3>
           <div class="tracks">${TRACKS.map(
@@ -67,6 +73,14 @@ export function menuScreen(app: HTMLElement, a: MenuActions): void {
     };
     wireSound(app);
     $('edit').onclick = a.editTeam;
+    $('optcards').onclick = () => {
+      saveSettings({ ...settings, cards: !settings.cards });
+      render();
+    };
+    $('optskip').onclick = () => {
+      saveSettings({ ...settings, skipQuali: !settings.skipQuali });
+      render();
+    };
     $('multi').onclick = () => a.multiplayer();
     const rejoin = document.getElementById('rejoin');
     if (rejoin) rejoin.onclick = () => a.multiplayer(lastGame()!);

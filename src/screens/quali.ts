@@ -239,7 +239,7 @@ export function qualiScreen(app: HTMLElement, ctx: QualiContext, onDone: (grid: 
     corners.push(res);
     phase = 'feedback';
     phaseStart = performance.now();
-    play(res.deleted || hit === 'miss' ? 'bad' : hit === 'green' ? 'good' : 'select', 0.7);
+    play(res.deleted || hit === 'miss' ? 'qmiss' : hit === 'green' ? 'qgreen' : 'qyellow');
     const label = res.deleted ? t('qLapDeleted') : hit === 'green' ? t('qGreen') : hit === 'yellow' ? t('qYellow') : t('qMiss');
     const d = res.deleted ? '' : `${res.delta > 0 ? '+' : res.delta < 0 ? '−' : '±'}${num(Math.abs(res.delta), 2)} s`;
     $('qov').innerHTML = `<div class="qfeedback ${res.deleted ? 'miss' : hit}"><b>${label}</b><span>${d}</span></div>`;

@@ -45,3 +45,31 @@ export function loadSeason(): Season | null {
     return null;
   }
 }
+
+/* ---------- options (main menu) ---------- */
+
+export interface Settings {
+  /** Driver cards before qualifying. */
+  cards: boolean;
+  /** Skip qualifying: the grid is drawn at random. */
+  skipQuali: boolean;
+}
+const SETTINGS_KEY = 'pitwall-settings';
+
+export function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { cards: false, skipQuali: false, ...(JSON.parse(raw) as Partial<Settings>) };
+  } catch {
+    /* ignore */
+  }
+  return { cards: false, skipQuali: false };
+}
+
+export function saveSettings(s: Settings): void {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+}

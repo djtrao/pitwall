@@ -200,6 +200,19 @@ When a car is within 1.2 s of the car ahead for about a third of a lap and is fa
 - Each AI driver has its own wetness threshold for switching to rain tyres (26 to 40%) and back (16 to 26%), so smart players can beat them with a good rain call.
 - AI uses Normal mode, Push in the last 3 laps and in duels, Conserve to nurse tyres to the finish, Max Attack only rarely. It pits under a safety car if its tyres are older than about 40% of a stint.
 
+
+### 7.8 Options: driver cards and skipping qualifying
+Two switches in the main menu (saved on the phone; single player and seasons, not multiplayer):
+- **Driver cards:** after the briefing every player driver gets 3 random cards and picks one
+  (roguelite style). A card has an icon, a name and its effect in small print, e.g. 🏃 Went jogging:
+  −25 % mistakes; 😴 Great sleep: −0.1 s per lap; 🏋️ Gym session: −30 % crash risk in duels;
+  🧘 Yoga: tyres last 10 % longer; 🌧️ Rain practice: −30 % time lost when wet; 🎮 Simulator night:
+  +6 % pass chance; 🧱 Defence class: rivals pass 6 % less often; 🔧 Pit drill: −0.3 s stops;
+  🍝 Pasta night: −0.05 s per lap and −10 % mistakes; ☕ Double espresso: +10 % pass chance but
+  +20 % risk. In a season the cards add up race by race (with limits); in a single race they count
+  for that race. Every AI driver gets one random card per race too, so the field stays fair.
+- **Skip qualifying:** the grid is drawn at random.
+
 ## 8. Race screen and UI
 
 - **Landscape layout (main):** timing tower on the left, track view in the centre, the player's two compact driver cards on the right, a bottom bar with lap counter, weather (wetness, crossover marker, rain chance) and speed buttons. The newest team radio message shows as a strip on the track. A fullscreen button (Android) also locks landscape.
@@ -209,6 +222,7 @@ When a car is within 1.2 s of the car ahead for about a third of a lap and is fa
 - **Driver card:** position, tyre and condition bar, last lap, gap ahead and behind, buttons for the 4 driving modes, tyre choice + BOX button (pits at the end of the lap, can be cancelled), warnings (two-compound rule, worn tyres, damage).
 - **Duel close-up:** the track view changes to a close-up of the two cars with the five choices, their chances and risk symbols, and a 6-second countdown bar; then the animation.
 - Big touch targets (at least 44 px), readable text for 11-year-olds, short words, colour plus icons (not colour alone).
+- Race controls react on press (not on click), and panels are only redrawn when something changed, so taps and mouse clicks never get lost. Tapping a car on the track follows it.
 - Results screen with positions gained or lost, pit stops, penalties, points; then the championship tables. Every time penalty shows its reason and the position in which the car crossed the line ("crossed the line P1 · +5 s released too early"). An open penalty is shown during the race in the driver card and the timing tower. A season-end screen with the champion.
 - Sounds (engine hum, radio beep, "Box box") as an optional later step.
 
