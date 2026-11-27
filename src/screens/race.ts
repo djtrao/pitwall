@@ -118,6 +118,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       <div class="r-track" id="cvp">
         <canvas id="cv"></canvas>
         <div id="scb"></div>
+        <div class="lights" id="lights"><i></i><i></i><i></i></div>
         <div class="ticker" id="ticker"></div>
         <div class="duelzone" id="duelzone"><canvas id="dcv"></canvas><div class="duel" id="duel"></div></div>
         <div class="pitgame" id="pitgame"></div>
@@ -125,7 +126,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       </div>
       <div class="r-cards" id="cards">${mine.map((c, i) => cardHTML(c, i)).join('')}</div>
       <div class="r-wxfull panel" id="wx"></div>
-      <div class="r-log panel" id="log"><h3>${t('radio')}</h3><div id="msgs"><div class="msg mine">${t('rLightsOut')}</div><div class="msg mine">${t('followHint')}</div><div class="msg mine">${t('rRuleHint')}</div></div></div>
+      <div class="r-log panel" id="log"><h3>${t('radio')}</h3><div id="msgs"><div class="msg mine">${t('followHint')}</div><div class="msg mine">${t('rRuleHint')}</div></div></div>
       <div class="r-rotate">${t('rotateHint')}</div>
     </div>`;
 
@@ -249,6 +250,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     race = src.race;
     mine = mineCars();
     tv.drawRace(race, (c) => src.dist(c), isMine);
+    updateLights(now);
     updateDuel();
     updatePitGame();
     uiTimer += dt;
@@ -265,6 +267,37 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     }
     requestAnimationFrame(frame);
   };
+
+  /* ---------- start lights: red, red, a short wait, then all green ---------- */
+  let lightStage = 0; // 0 off, 1 one red, 2 two red, 3 green
+  let greenAt = 0;
+  function updateLights(now: number) {
+    const st = race.start;
+    const el = $('lights');
+    if (!st || (lightStage === 3 && now - greenAt > 1500)) {
+      if (el.classList.contains('show')) el.classList.remove('show');
+      return;
+    }
+    const cfg = race.tuning.start;
+    const stage = st.t >= st.green ? 3 : st.t >= cfg.red2 ? 2 : st.t >= cfg.red1 ? 1 : 0;
+    // a race joined later (or reloaded) is already running: no lights
+    if (lightStage === 0 && stage === 3 && race.time > 1) {
+      lightStage = 3;
+      greenAt = -1e9;
+      return;
+    }
+    el.classList.add('show');
+    if (stage === lightStage) return;
+    lightStage = stage;
+    el.querySelectorAll('i').forEach((l, i) => {
+      l.className = stage === 3 ? 'green' : i < stage ? 'red' : '';
+    });
+    if (stage === 1 || stage === 2) play('lred');
+    if (stage === 3) {
+      play('lgreen');
+      greenAt = now;
+    }
+  }
 
   /* ---------- duel close-up (only while following one of your cars) ---------- */
   const dv = new DuelView($('dcv') as HTMLCanvasElement);
@@ -534,6 +567,9 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       case 'contactPenalty': return msg('rContact', { s: e.data?.seconds ?? 5 }, carMine || otherMine);
       case 'duelFail': return carMine || otherMine ? msg('rDuelFail', {}, carMine || otherMine) : null;
       case 'crash': return msg('rCrash', {}, carMine || otherMine);
+      case 'offWing': return msg('rOffWing');
+      case 'out': return msg('rOut');
+      case 'lightsOut': return msg('rLightsOut', {}, true);
       case 'wingDamage': return msg('rWing');
       case 'engineDamage': return msg('rEngine');
       case 'tyresWorn': {

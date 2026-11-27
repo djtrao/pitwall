@@ -3,7 +3,7 @@ import { getLang, setLang, t } from './i18n';
 import { addResult, currentTrack, newSeason, nextRound, seasonOver, type Season } from './game/season';
 import { loadSettings, loadTeam, saveSeason } from './game/store';
 import type { Team } from './game/team';
-import { aiCard, buildField, combinePerks, createRace, generateWeather, makeRng, makeTuning, rand, results, type CarSetup, type HumanTeam, type RaceState, type Track } from './sim';
+import { addRoundCards, buildField, createRace, withCardPerks, generateWeather, makeRng, makeTuning, rand, results, type CarSetup, type HumanTeam, type RaceState, type Track } from './sim';
 import { briefingScreen } from './screens/briefing';
 import { cardsScreen } from './screens/cards';
 import { menuScreen } from './screens/menu';
@@ -38,7 +38,7 @@ function weekend(
   const weather = generateWeather(track, makeRng(seed, 1), tuning);
   const settings = loadSettings();
   const startRace = (grid: CarSetup[]) => {
-    const race = createRace({ seed, track, cars: grid, weather, tuning });
+    const race = createRace({ seed, track, cars: grid, weather, tuning, startLights: true });
     top();
     raceScreen(app, localRace(race), () => done(race));
   };
@@ -47,7 +47,7 @@ function weekend(
     if (settings.skipQuali) startRace(randomGrid(field, seed));
     else qualiScreen(app, { track, weather, tuning, seed, cars: field }, startRace);
   };
-  const withPerks = () => cars.map((c) => (settings.cards && owned[c.id]?.length ? { ...c, perks: combinePerks(owned[c.id]) } : c));
+  const withPerks = () => (settings.cards ? withCardPerks(cars, owned) : cars);
   top();
   briefingScreen(
     app,
@@ -56,12 +56,8 @@ function weekend(
       if (!settings.cards) return qualifying(withPerks());
       top();
       cardsScreen(app, { drivers: cars.filter((c) => c.human), owned, seed, season: !!round }, (picks) => {
-        // AI drivers pick a random card too, so the field stays fair
-        const rng = makeRng(seed, 450);
-        for (const c of cars) {
-          const id = c.human ? picks[c.id] : aiCard(rng).id;
-          if (id) (owned[c.id] ??= []).push(id);
-        }
+        // AI drivers get a random card too, so the field stays fair
+        addRoundCards(owned, cars, picks, seed);
         save();
         qualifying(withPerks());
       });

@@ -8,9 +8,10 @@ import { currentTrack, type Season } from '../game/season';
 import { loadTeam } from '../game/store';
 import { Connection, saveServerUrl, serverUrl, type ConnStatus } from '../net/client';
 import { randomCode, validCode, type PhaseInfo, type PlayerInfo, type ServerMsg, type Settings } from '../net/protocol';
-import { applyCommand, generateWeather, makeRng, makeTuning, type Car, type Command, type QualiRun, type RaceEvent, type RaceState } from '../sim';
+import { applyCommand, generateWeather, makeRng, makeTuning, mpCardSlot, withCardPerks, type Car, type Command, type QualiRun, type RaceEvent, type RaceState } from '../sim';
 import { $, esc } from '../ui/common';
 import { briefingScreen } from './briefing';
+import { cardsScreen } from './cards';
 import { qualiScreen } from './quali';
 import { raceScreen, type RaceSource } from './race';
 import { resultsScreen, seasonEndScreen } from './results';
@@ -92,7 +93,7 @@ export function multiplayerScreen(app: HTMLElement, back: () => void, joinCode?:
   let conn: Connection | null = null;
   let myId = '';
   let players: PlayerInfo[] = [];
-  let settings: Settings = { races: 3, speed: 1 };
+  let settings: Settings = { races: 3, speed: 1, cards: true };
   let info: PhaseInfo | null = null;
   let shown = ''; // which phase screen is on display ("race:2" …)
   let stopScreen: (() => void) | null = null;
@@ -261,9 +262,10 @@ export function multiplayerScreen(app: HTMLElement, back: () => void, joinCode?:
                  <div class="seg">${[3, 5, 8].map((n) => `<button data-races="${n}" class="${settings.races === n ? 'on' : ''}">${n}</button>`).join('')}</div>
                  <h3 class="mt">${t('mpSpeed')}</h3>
                  <div class="seg">${[1, 2].map((n) => `<button data-speed="${n}" class="${settings.speed === n ? 'on' : ''}">${n}×</button>`).join('')}</div>
-                 <button class="big" id="start" ${allReady ? '' : 'disabled'}>${t('mpStart')}</button>
+                 <button class="opt mt${settings.cards ? ' on' : ''}" id="mpcards"><b>${t('optCards')}</b><small>${t('optCardsHint')}</small></button>
+                 <button class="big mt" id="start" ${allReady ? '' : 'disabled'}>${t('mpStart')}</button>
                  ${allReady ? '' : `<p class="hint">${t('mpAllReady')}</p>`}`
-              : `<p class="hint">${t('mpRaces')}: <b>${settings.races}</b> · ${t('mpSpeed')}: <b>${settings.speed}×</b></p>
+              : `<p class="hint">${t('mpRaces')}: <b>${settings.races}</b> · ${t('mpSpeed')}: <b>${settings.speed}×</b> · ${t('optCards')} ${settings.cards ? '✅' : '❌'}</p>
                  <button class="big" id="ready">${me()?.ready ? t('mpNotReady') : t('mpReady')}</button>
                  <p class="hint">${t('mpWaitHost')}</p>`
           }
@@ -287,6 +289,8 @@ export function multiplayerScreen(app: HTMLElement, back: () => void, joinCode?:
     app.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(
       (b) => (b.onclick = () => conn?.send({ t: 'settings', settings: { ...settings, speed: Number(b.dataset.speed) as 1 | 2 } })),
     );
+    const cardsBtn = document.getElementById('mpcards');
+    if (cardsBtn) cardsBtn.onclick = () => conn?.send({ t: 'settings', settings: { ...settings, cards: !settings.cards } });
     const start = document.getElementById('start');
     if (start) start.onclick = () => conn?.send({ t: 'start' });
     const ready = document.getElementById('ready');
@@ -336,8 +340,22 @@ export function multiplayerScreen(app: HTMLElement, back: () => void, joinCode?:
     shown = key;
     window.scrollTo(0, 0);
     briefingScreen(app, { track: currentTrack(s), weather: weatherFor(s), tuning, round: s.round, rounds: s.trackIds.length }, () => {
-      conn?.send({ t: 'briefingReady' });
-      updateBriefingReady();
+      if (!settings.cards || info?.readyIds.includes(myId)) {
+        conn?.send({ t: 'briefingReady' });
+        updateBriefingReady();
+        return;
+      }
+      // driver cards: pick one of 3 for each of your drivers, then wait for the others
+      window.scrollTo(0, 0);
+      cardsScreen(
+        app,
+        { drivers: s.cars.filter((c) => c.teamId === me()?.teamId), owned: s.cards ?? {}, seed: info!.seed, season: true, slot: (c) => mpCardSlot(c.id) },
+        (picks) => {
+          conn?.send({ t: 'briefingReady', picks });
+          app.innerHTML = `<h1>🃏 ${t('cardsTitle')}</h1><button class="big mt" id="bgo" disabled></button>`;
+          updateBriefingReady();
+        },
+      );
     });
     updateBriefingReady();
   }
@@ -364,7 +382,7 @@ export function multiplayerScreen(app: HTMLElement, back: () => void, joinCode?:
         weather: weatherFor(s),
         tuning,
         seed: info!.seed,
-        cars: s.cars,
+        cars: settings.cards ? withCardPerks(s.cars, s.cards ?? {}) : s.cars,
         remote: {
           myTeam: me()?.teamId ?? '',
           submit: (run) => conn?.send({ t: 'qualiRun', run }),

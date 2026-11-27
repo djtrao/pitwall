@@ -206,6 +206,9 @@ export type EventKind =
   | 'duelSpin'
   | 'duelOff'
   | 'crash'
+  | 'offWing'
+  | 'out'
+  | 'lightsOut'
   | 'pitStopTime'
   | 'unsafeRelease'
   | 'contactPenalty'
@@ -239,6 +242,8 @@ export interface RaceConfig {
   /** Override the safety car: null = none, or deploy on a given lap for a number of laps. */
   safetyCar?: null | { lap: number; laps: number; at?: number };
   tuning?: Tuning;
+  /** Show the start lights first (the cars wait on the grid until they go green). */
+  startLights?: boolean;
 }
 
 export interface RaceState {
@@ -265,6 +270,8 @@ export interface RaceState {
   events: RaceEvent[];
   nextId: number;
   rng: Rng;
+  /** Start lights: real seconds since the race screen opened, and when the lights go green. */
+  start?: { t: number; green: number };
 }
 
 export type Command =

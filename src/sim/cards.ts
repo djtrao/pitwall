@@ -2,7 +2,8 @@
  * Driver cards (optional, chosen before qualifying): small bonuses for one driver, like in
  * roguelite games. In a season they add up race by race. AI drivers get a random card too.
  */
-import { int, rand, type Rng } from './rng';
+import { int, makeRng, rand, type Rng } from './rng';
+import type { CarSetup } from './types';
 
 /** What a driver's cards change. Neutral values: pace 0, multipliers 1, additions 0. */
 export interface Perks {
@@ -88,3 +89,28 @@ export function drawCards(r: Rng, n = 3): Card[] {
 
 /** An AI driver's pick: one random card. */
 export const aiCard = (r: Rng): Card => CARDS[int(r, 0, CARDS.length - 1)];
+
+/**
+ * The 3 cards a driver may choose from this weekend. `slot` keeps the offers of different drivers
+ * apart (single player: 0 and 1; multiplayer: team number × 10 + 0 or 1), and the server can check a pick.
+ */
+export const cardOffer = (seed: number, slot: number): Card[] => drawCards(makeRng(seed, 400 + slot));
+
+/** Card slot of a car in multiplayer (team ids are "h1", "h2" …, cars "h1-1", "h1-2"). */
+export function mpCardSlot(carId: string): number {
+  const m = /^h(\d+)-(\d)$/.exec(carId);
+  return m ? Number(m[1]) * 10 + Number(m[2]) - 1 : 0;
+}
+
+/** Add this weekend's cards: the players' picks, and one random card for every AI driver. */
+export function addRoundCards(owned: Record<string, string[]>, cars: readonly CarSetup[], picks: Record<string, string>, seed: number): void {
+  const rng = makeRng(seed, 450);
+  for (const c of cars) {
+    const id = c.human ? picks[c.id] : aiCard(rng).id;
+    if (id && cardById(id)) (owned[c.id] ??= []).push(id);
+  }
+}
+
+/** The cars with their cards' effects. */
+export const withCardPerks = (cars: readonly CarSetup[], owned: Record<string, string[]>): CarSetup[] =>
+  cars.map((c) => (owned[c.id]?.length ? { ...c, perks: combinePerks(owned[c.id]) } : c));

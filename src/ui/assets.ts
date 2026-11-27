@@ -49,11 +49,11 @@ export function whenReady(): Promise<void> {
 export type Sfx =
   | 'click' | 'select' | 'good' | 'bad' | 'tick' | 'go' | 'crash' | 'bump' | 'gun' | 'pass' | 'radio'
   // made for Pit Wall (not from Kenney): wheel gun, overtaking jingles, qualifying hits
-  | 'wrench' | 'passup' | 'passdown' | 'qgreen' | 'qyellow' | 'qmiss';
+  | 'wrench' | 'passup' | 'passdown' | 'qgreen' | 'qyellow' | 'qmiss' | 'lred' | 'lgreen';
 const MUTE_KEY = 'pitwall.mute';
 let ctx: AudioContext | null = null;
 const buffers = new Map<Sfx, AudioBuffer>();
-const VOLUME: Partial<Record<Sfx, number>> = { click: 0.5, select: 0.5, tick: 0.7, radio: 0.4, gun: 0.8, passup: 1.4, passdown: 1.4, qyellow: 1.3, qmiss: 1.3 };
+const VOLUME: Partial<Record<Sfx, number>> = { click: 0.5, select: 0.5, tick: 0.7, radio: 0.4, gun: 0.8, passup: 1.4, passdown: 1.4, qyellow: 1.3, qmiss: 1.3, lred: 0.9, lgreen: 0.9 };
 
 export function muted(): boolean {
   try {
@@ -87,7 +87,7 @@ function unlock(): void {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
-    for (const s of ['click', 'select', 'good', 'bad', 'tick', 'go', 'crash', 'bump', 'gun', 'pass', 'radio', 'wrench', 'passup', 'passdown', 'qgreen', 'qyellow', 'qmiss'] as Sfx[])
+    for (const s of ['click', 'select', 'good', 'bad', 'tick', 'go', 'crash', 'bump', 'gun', 'pass', 'radio', 'wrench', 'passup', 'passdown', 'qgreen', 'qyellow', 'qmiss', 'lred', 'lgreen'] as Sfx[])
       void load(s);
   }
   if (ctx.state === 'suspended') void ctx.resume();

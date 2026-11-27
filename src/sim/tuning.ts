@@ -52,11 +52,23 @@ export const DEFAULT_TUNING = {
 
   /** Driving modes: 0 Conserve, 1 Normal, 2 Push, 3 Max Attack. */
   modes: [
-    { pace: 0.5, wear: 0.6, mistake: 0, bigShare: 0 },
-    { pace: 0, wear: 1.0, mistake: 0.005, bigShare: 0 },
-    { pace: -0.8, wear: 1.25, mistake: 0.03, bigShare: 0.1 },
-    { pace: -1.5, wear: 1.4, mistake: 0.08, bigShare: 0.25 },
+    // offShare: share of mistakes where the car flies off on its own (front wing damage or out)
+    { pace: 0.5, wear: 0.6, mistake: 0, bigShare: 0, offShare: 0 },
+    { pace: 0, wear: 1.0, mistake: 0.005, bigShare: 0, offShare: 0 },
+    { pace: -0.8, wear: 1.25, mistake: 0.03, bigShare: 0.1, offShare: 0.04 },
+    { pace: -2.0, wear: 1.5, mistake: 0.08, bigShare: 0.25, offShare: 0.28 },
   ],
+  /** A car flying off on its own (see offShare): what happens. */
+  off: {
+    /** Share of these that end the race (the rest: front wing damage). */
+    outShare: 0.55,
+    /** Time lost when the car carries on with a broken wing (s). */
+    loss: 6,
+    /** Chance that a car out of the race brings out the safety car. */
+    safetyCar: 0.35,
+  },
+  /** Start lights before the race (real seconds): red, red, a short wait, then green. */
+  start: { red1: 0.8, red2: 1.8, pauseMin: 1.2, pauseMax: 2.2 },
 
   mistakes: {
     /** Below this condition the mistake chance rises, up to ×wornMax at 0 %. */
