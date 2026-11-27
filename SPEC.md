@@ -129,8 +129,12 @@ T = T_base + car + driver + tyre + wear + mode + weather + noise
 - **Spin** on slicks in the wet: −6 s.
 - **Flying off on its own** (4% of mistakes in Push, 28% in Max Attack): into the barrier. 55% of these
   end the race (always if the front wing is already broken), the rest break the front wing (−6 s).
-  A car out of the race brings out the safety car 35% of the time. A driver on Max Attack the whole
-  race is out in about 1 race in 5.
+  A car out of the race brings out the safety car 35% of the time.
+- **Max Attack on worn tyres** adds an extra chance per lap of flying off: none above 50% condition,
+  rising to 0.15 per lap at 25% (longer Max Attack gets dangerous), 0.8 per lap at 5% (very
+  dangerous) and 4 per lap just above 0% (almost always within the lap). At 0% the car flies off at
+  once. The radio and the driver card warn when the tyres drop below 50% and 25% on Max Attack.
+  The AI only uses Max Attack (last lap) on tyres above 50%.
 - Every mistake creates a team radio message so the kids understand what happened.
 
 ### 7.3a Natural driving within a lap
@@ -206,8 +210,8 @@ When a car is within 1.2 s of the car ahead for about a third of a lap and is fa
 
 
 ### 7.7a Start lights
-The race starts with lights over the track while the cars stand on the grid: one red light, a second
-red light (each with a low beep), a short wait of 1.2 to 2.2 s (different every race), then all three
+The race starts with lights over the track while the cars stand on the grid: three red lights one
+after the other (each with the same low beep), a short wait of 1.2 to 2.2 s (different every race), then all three
 go green with a higher, longer beep and the cars go. It runs in real time (also at 2× / 4×) and in
 multiplayer the server holds the race until the lights are green, so everybody starts together.
 

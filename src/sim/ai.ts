@@ -91,8 +91,8 @@ export function aiOnLap(race: RaceState, c: Car, done: number): void {
   const r = wearPerLap(c.tyre, NORMAL, w, track, t, false);
   if (left <= 3) mode = PUSH;
   else if (ahead < 1.0 || behind < 0.8) mode = PUSH;
-  // rare Max Attack: last lap for aggressive drivers
-  if (left === 1 && c.ai.aggression > 0.6) mode = MAX_ATTACK;
+  // rare Max Attack: last lap for aggressive drivers, but not on worn tyres (too dangerous)
+  if (left === 1 && c.ai.aggression > 0.6 && c.cond >= t.wornOff[0][0]) mode = MAX_ATTACK;
   // tyres nearly dead and far from the finish: look after them
   if (c.cond < t.cliffAt + 0.1 && left > 2 && !willStop && mode > NORMAL) mode = NORMAL;
   // nursing the tyres to the finish instead of stopping

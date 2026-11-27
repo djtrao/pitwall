@@ -110,7 +110,7 @@ export function createRace(cfg: RaceConfig): RaceState {
     events: [],
     nextId: 1,
     rng: makeRng(cfg.seed, 0),
-    start: cfg.startLights ? { t: 0, green: tuning.start.red2 + range(makeRng(cfg.seed, 5), tuning.start.pauseMin, tuning.start.pauseMax) } : undefined,
+    start: cfg.startLights ? { t: 0, green: tuning.start.red3 + range(makeRng(cfg.seed, 5), tuning.start.pauseMin, tuning.start.pauseMax) } : undefined,
   };
 }
 
@@ -389,6 +389,16 @@ export function step(race: RaceState, realDt = 0.1): void {
     c.cond = Math.max(0, c.cond - wearPerLap(c.tyre, c.mode, race.wetness, track, t, sc.active) * (c.perks?.wear ?? 1) * dDist);
     if (c.loss > 0) c.loss = Math.max(0, c.loss - dt * (1 - t.mistakes.slowFactor));
     else if (!sc.active && rand(c.rng) < mistakeChance(c, race.wetness, t) * lapScale(track) * dDist) makeMistake(race, c);
+    // Max Attack on worn tyres gets dangerous, on fully worn tyres the car flies off at once
+    const danger = c.cond < 0.25 ? 2 : c.cond < t.wornOff[0][0] ? 1 : 0;
+    if (danger === 0) c.riskWarn = 0;
+    else if (c.human && c.mode === 3 && danger > (c.riskWarn ?? 0)) {
+      c.riskWarn = danger;
+      emit(race, 'maxAttackRisk', c, undefined, { level: danger, cond: Math.round(c.cond * 100) });
+    }
+    if (c.mode === 3 && !sc.active && c.loss <= 0 && c.status === 'running' && c.cond < t.wornOff[0][0]) {
+      if (c.cond <= 0 || rand(c.rng) < wornOffRate(c.cond, t) * lapScale(track) * dDist) flyOff(race, c);
+    }
   }
 
   // ----- decisions before the pit entry, pit entry, line crossings -----
@@ -494,20 +504,7 @@ function makeMistake(race: RaceState, c: Car): void {
     c.loss += m.spin;
     emit(race, 'spin', c);
   } else if (t.modes[c.mode].offShare > 0 && rand(c.rng) < t.modes[c.mode].offShare) {
-    // pushing too hard: off the track on its own, into the barrier
-    if (c.wingDamage || rand(c.rng) < t.off.outShare) {
-      c.status = 'dnf';
-      c.speed = 0;
-      c.pitPlan = null;
-      emit(race, 'out', c);
-      if (!race.safetyCar.active && chance(race.rng, t.off.safetyCar)) {
-        deploySafetyCar(race, range(race.rng, t.safetyCar.minLaps, t.safetyCar.maxLaps));
-      }
-    } else {
-      c.loss += t.off.loss;
-      c.wingDamage = true;
-      emit(race, 'offWing', c);
-    }
+    flyOff(race, c, true);
   } else if (rand(c.rng) < t.modes[c.mode].bigShare) {
     c.loss += m.big;
     c.cond = Math.max(0, c.cond - m.flatSpotWear);
@@ -518,6 +515,39 @@ function makeMistake(race: RaceState, c: Car): void {
     c.loss += loss;
     emit(race, 'mistakeSmall', c, undefined, { loss: Math.round(loss * 10) / 10 });
   }
+}
+
+/** Pushing too hard: off the track on its own, into the barrier (front wing broken, or out). */
+function flyOff(race: RaceState, c: Car, counted = false): void {
+  const t = race.tuning;
+  if (!counted) c.mistakes++;
+  if (c.wingDamage || rand(c.rng) < t.off.outShare) {
+    c.status = 'dnf';
+    c.speed = 0;
+    c.pitPlan = null;
+    emit(race, 'out', c);
+    if (!race.safetyCar.active && chance(race.rng, t.off.safetyCar)) {
+      deploySafetyCar(race, range(race.rng, t.safetyCar.minLaps, t.safetyCar.maxLaps));
+    }
+  } else {
+    c.loss += t.off.loss;
+    c.wingDamage = true;
+    emit(race, 'offWing', c);
+  }
+}
+
+/** Max Attack on worn tyres: extra chance per lap of flying off (see tuning.wornOff). */
+export function wornOffRate(cond: number, t: Tuning): number {
+  const pts = t.wornOff;
+  if (cond >= pts[0][0]) return 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [c1, r1] = pts[i];
+    if (cond >= c1) {
+      const [c0, r0] = pts[i - 1];
+      return r1 + ((cond - c1) / (c0 - c1)) * (r0 - r1);
+    }
+  }
+  return pts[pts.length - 1][1];
 }
 
 function finishCar(race: RaceState, c: Car): void {

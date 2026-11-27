@@ -67,8 +67,18 @@ export const DEFAULT_TUNING = {
     /** Chance that a car out of the race brings out the safety car. */
     safetyCar: 0.35,
   },
-  /** Start lights before the race (real seconds): red, red, a short wait, then green. */
-  start: { red1: 0.8, red2: 1.8, pauseMin: 1.2, pauseMax: 2.2 },
+  /**
+   * Max Attack on worn tyres: extra chance per lap of flying off, by tyre condition (linear in
+   * between). Above 50 % nothing extra; at 0 % the car flies off at once.
+   */
+  wornOff: [
+    [0.5, 0],
+    [0.25, 0.15],
+    [0.05, 0.8],
+    [0.0, 4],
+  ] as [number, number][],
+  /** Start lights before the race (real seconds): red, red, red, a short wait, then green. */
+  start: { red1: 0.8, red2: 1.8, red3: 2.8, pauseMin: 1.2, pauseMax: 2.2 },
 
   mistakes: {
     /** Below this condition the mistake chance rises, up to ×wornMax at 0 %. */

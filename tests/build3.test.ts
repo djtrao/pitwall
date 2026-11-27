@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Team } from '../src/game/team';
 import { Room } from '../src/server/room';
-import { cardOffer, makeTuning, mpCardSlot, step } from '../src/sim';
+import { cardOffer, makeTuning, mpCardSlot, step, wornOffRate } from '../src/sim';
 import { soloRace } from './helpers';
 
 describe('start lights', () => {
@@ -9,7 +9,7 @@ describe('start lights', () => {
     const race = soloRace({ startLights: true });
     const start = race.cars[0].dist;
     const green = race.start!.green;
-    expect(green).toBeGreaterThan(race.tuning.start.red2);
+    expect(green).toBeGreaterThan(race.tuning.start.red3);
     for (let i = 0; i < Math.floor(green / 0.1) - 1; i++) step(race, 0.1);
     expect(race.cars[0].dist).toBe(start);
     expect(race.time).toBe(0);
@@ -73,5 +73,46 @@ describe('driver cards in multiplayer', () => {
   it('different players are offered different cards', () => {
     expect(mpCardSlot('h1-1')).not.toBe(mpCardSlot('h2-1'));
     expect(mpCardSlot('h2-2')).toBe(21);
+  });
+});
+
+describe('Max Attack on worn tyres', () => {
+  const tuning = makeTuning();
+
+  it('gets more dangerous the more the tyres are worn', () => {
+    expect(wornOffRate(0.8, tuning)).toBe(0);
+    expect(wornOffRate(0.5, tuning)).toBe(0);
+    const r40 = wornOffRate(0.4, tuning);
+    const r15 = wornOffRate(0.15, tuning);
+    const r3 = wornOffRate(0.03, tuning);
+    expect(r40).toBeGreaterThan(0);
+    expect(r15).toBeGreaterThan(r40 * 5);
+    expect(r3).toBeGreaterThan(r15 * 3);
+  });
+
+  it('on fully worn tyres the car flies off at once', () => {
+    const t = makeTuning({ noise: 0 });
+    t.modes[3].mistake = 0;
+    const race = soloRace({ tuning: t });
+    for (let i = 0; i < 20; i++) step(race, 0.1); // get going
+    const c = race.cars[0];
+    c.mode = 3;
+    c.cond = 0;
+    c.wingDamage = true; // already broken: flying off means out
+    step(race, 0.1);
+    expect(c.status).toBe('dnf');
+  });
+
+  it('on fresh tyres there is no extra risk, and the radio warns when it gets dangerous', () => {
+    const t = makeTuning({ noise: 0 });
+    t.modes[3].mistake = 0;
+    const race = soloRace({ tuning: t });
+    const c = race.cars[0];
+    c.mode = 3;
+    for (let i = 0; i < 600; i++) step(race, 0.1);
+    expect(c.status).toBe('running');
+    c.cond = 0.45;
+    step(race, 0.1);
+    expect(race.events.some((e) => e.kind === 'maxAttackRisk' && e.data?.level === 1)).toBe(true);
   });
 });

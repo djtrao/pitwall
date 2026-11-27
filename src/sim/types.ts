@@ -122,6 +122,8 @@ export interface Car extends CarSetup {
   /** Seconds still to lose from a mistake / failed attack / crash. */
   loss: number;
   flatSpot: boolean;
+  /** Max Attack on worn tyres: the danger level already announced on the radio (0, 1 = below 50 %, 2 = below 25 %). */
+  riskWarn?: number;
   wingDamage: boolean;
   /** Engine damaged: less top speed until repaired in the pits. */
   engineDamage: boolean;
@@ -209,6 +211,7 @@ export type EventKind =
   | 'offWing'
   | 'out'
   | 'lightsOut'
+  | 'maxAttackRisk'
   | 'pitStopTime'
   | 'unsafeRelease'
   | 'contactPenalty'

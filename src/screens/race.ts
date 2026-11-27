@@ -268,21 +268,21 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     requestAnimationFrame(frame);
   };
 
-  /* ---------- start lights: red, red, a short wait, then all green ---------- */
-  let lightStage = 0; // 0 off, 1 one red, 2 two red, 3 green
+  /* ---------- start lights: red, red, red, a short wait, then all green ---------- */
+  let lightStage = 0; // 0 off, 1–3 red lights on, 4 green
   let greenAt = 0;
   function updateLights(now: number) {
     const st = race.start;
     const el = $('lights');
-    if (!st || (lightStage === 3 && now - greenAt > 1500)) {
+    if (!st || (lightStage === 4 && now - greenAt > 1500)) {
       if (el.classList.contains('show')) el.classList.remove('show');
       return;
     }
     const cfg = race.tuning.start;
-    const stage = st.t >= st.green ? 3 : st.t >= cfg.red2 ? 2 : st.t >= cfg.red1 ? 1 : 0;
+    const stage = st.t >= st.green ? 4 : st.t >= cfg.red3 ? 3 : st.t >= cfg.red2 ? 2 : st.t >= cfg.red1 ? 1 : 0;
     // a race joined later (or reloaded) is already running: no lights
-    if (lightStage === 0 && stage === 3 && race.time > 1) {
-      lightStage = 3;
+    if (lightStage === 0 && stage === 4 && race.time > 1) {
+      lightStage = 4;
       greenAt = -1e9;
       return;
     }
@@ -290,10 +290,10 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     if (stage === lightStage) return;
     lightStage = stage;
     el.querySelectorAll('i').forEach((l, i) => {
-      l.className = stage === 3 ? 'green' : i < stage ? 'red' : '';
+      l.className = stage === 4 ? 'green' : i < stage ? 'red' : '';
     });
-    if (stage === 1 || stage === 2) play('lred');
-    if (stage === 3) {
+    if (stage >= 1 && stage <= 3) play('lred');
+    if (stage === 4) {
       play('lgreen');
       greenAt = now;
     }
@@ -443,6 +443,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
     if (c.status === 'running' || c.status === 'pit') {
       if (c.pitPlan) warn.push(t('boxPlanned', { tyre: tyreName(c.pitPlan) }));
       if (c.status === 'running') {
+        if (c.mode === 3 && c.cond < 0.5) warn.push(t(c.cond < 0.25 ? 'warnMaxRisk2' : 'warnMaxRisk1'));
         if (c.cond < race.tuning.cliffAt + 0.05) warn.push(t('warnWorn'));
         if (c.tyre !== 'W' && race.wetness > cross + 5) warn.push(t('warnWet'));
         if (c.tyre === 'W' && race.wetness < cross - 8 && race.rainNow === 0) warn.push(t('warnDry'));
@@ -570,6 +571,7 @@ export function raceScreen(app: HTMLElement, src: RaceSource, onDone: () => void
       case 'offWing': return msg('rOffWing');
       case 'out': return msg('rOut');
       case 'lightsOut': return msg('rLightsOut', {}, true);
+      case 'maxAttackRisk': return carMine ? msg(Number(e.data?.level) >= 2 ? 'rMaxRisk2' : 'rMaxRisk1', { cond: e.data?.cond ?? 0 }) : null;
       case 'wingDamage': return msg('rWing');
       case 'engineDamage': return msg('rEngine');
       case 'tyresWorn': {
