@@ -326,6 +326,8 @@ const STRINGS = {
   rPassedMine: { de: '😤 {other} wird von {car} überholt', en: '😤 {other} is overtaken by {car}' },
   rDuelFail: { de: '🛡️ {car} kommt nicht an {other} vorbei', en: '🛡️ {car} cannot get past {other}' },
   rCrash: { de: '💥 Berührung! {car} und {other} kollidieren', en: '💥 Contact! {car} and {other} touch' },
+  rOffWing: { de: '💥 {car} übertreibt es auf Vollgas: Abflug in die Mauer! Frontflügel kaputt', en: '💥 {car} pushes too hard: off into the wall! Front wing broken' },
+  rOut: { de: '🚨 {car} fliegt ab und scheidet aus!', en: '🚨 {car} crashes out of the race!' },
   rWing: { de: '🪛 {car} hat den Frontflügel beschädigt', en: '🪛 {car} has damaged the front wing' },
   rWorn: { de: '🛞 {car}: Reifen bei {cond} % – denk an die Box!', en: '🛞 {car}: tyres at {cond} % – think about boxing!' },
   rPenalty: { de: '⚠️ {car}: +20 s – nur eine Trocken-Reifen-Sorte!', en: '⚠️ {car}: +20 s – only one dry tyre type!' },

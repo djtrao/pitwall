@@ -6,7 +6,11 @@
 import { addResult, currentTrack, newSeason, nextRound, seasonOver, type Season } from '../game/season';
 import { validateTeam, type Team } from '../game/team';
 import {
+  addRoundCards,
   aiSession,
+  cardOffer,
+  mpCardSlot,
+  withCardPerks,
   applyCommand,
   createRace,
   generateWeather,
@@ -39,13 +43,15 @@ const tuning = makeTuning();
 
 export class Room {
   players: Player[] = [];
-  settings: Settings = { races: 3, speed: 1 };
+  settings: Settings = { races: 3, speed: 1, cards: true };
   phase: Phase = 'lobby';
   season: Season | null = null;
   race: RaceState | null = null;
   paused = false;
   private seed = 0;
   private briefingReady = new Set<string>();
+  /** Driver cards picked in this briefing (car id → card id). */
+  private picks: Record<string, string> = {};
   private aiRuns: QualiRun[] = [];
   private humanRuns: QualiRun[] = [];
   private qualiEnd = 0;
@@ -153,6 +159,7 @@ export class Room {
         if (!p.host || this.phase !== 'lobby') return;
         if ([3, 5, 8].includes(msg.settings.races)) this.settings.races = msg.settings.races;
         if ([1, 2].includes(msg.settings.speed)) this.settings.speed = msg.settings.speed;
+        if (typeof msg.settings.cards === 'boolean') this.settings.cards = msg.settings.cards;
         this.broadcastLobby();
         return;
       case 'start':
@@ -162,6 +169,14 @@ export class Room {
         return;
       case 'briefingReady':
         if (this.phase !== 'briefing') return;
+        if (this.settings.cards && msg.picks && typeof msg.picks === 'object') {
+          // only the player's own cars, and only cards they were offered
+          for (const n of [1, 2]) {
+            const id = `${p.teamId}-${n}`;
+            const card = msg.picks[id];
+            if (typeof card === 'string' && cardOffer(this.seed, mpCardSlot(id)).some((c) => c.id === card)) this.picks[id] = card;
+          }
+        }
         this.briefingReady.add(playerId);
         this.broadcastPhase();
         this.checkBriefingDone();
@@ -208,12 +223,23 @@ export class Room {
     this.phase = 'briefing';
     this.race = null;
     this.briefingReady.clear();
+    this.picks = {};
     this.broadcastPhase();
+  }
+
+  /** The cars with their cards (when the cards are on). */
+  private field() {
+    const s = this.season!;
+    return this.settings.cards ? withCardPerks(s.cars, s.cards ?? {}) : s.cars;
   }
 
   private checkBriefingDone(): void {
     const waiting = this.players.filter((p) => p.connected && !this.briefingReady.has(p.id));
-    if (waiting.length === 0) this.startQuali();
+    if (waiting.length === 0) {
+      const s = this.season!;
+      if (this.settings.cards) addRoundCards((s.cards ??= {}), s.cars, this.picks, this.seed);
+      this.startQuali();
+    }
   }
 
   private weather() {
@@ -223,7 +249,7 @@ export class Room {
   private startQuali(): void {
     const s = this.season!;
     this.phase = 'quali';
-    this.aiRuns = aiSession(s.cars, currentTrack(s), this.weather(), tuning, this.seed);
+    this.aiRuns = aiSession(this.field(), currentTrack(s), this.weather(), tuning, this.seed);
     this.humanRuns = [];
     this.qualiStart = this.io.now();
     this.qualiEnd = this.qualiStart + QUALI_SECONDS * 1000;
@@ -275,10 +301,10 @@ export class Room {
     const s = this.season!;
     const all = [...this.aiRuns, ...this.humanRuns];
     const connected = new Set(this.players.filter((p) => p.connected).map((p) => p.teamId));
-    const grid = gridFromQualifying(s.cars, all).map((c) =>
+    const grid = gridFromQualifying(this.field(), all).map((c) =>
       c.human ? { ...c, autoDuel: true, pitGame: true, autopilot: !connected.has(c.teamId) } : c,
     );
-    this.race = createRace({ seed: this.seed, track: currentTrack(s), cars: grid, weather: this.weather(), tuning, speed: this.settings.speed });
+    this.race = createRace({ seed: this.seed, track: currentTrack(s), cars: grid, weather: this.weather(), tuning, speed: this.settings.speed, startLights: true });
     this.paused = false;
     this.eventCursor = 0;
     this.phase = 'race';

@@ -121,12 +121,16 @@ T = T_base + car + driver + tyre + wear + mode + weather + noise
 | Conserve | +0.5 s | ×0.6 | 0% |
 | Normal | 0 s | ×1.0 | 0.5% |
 | Push | −0.8 s | ×1.25 | 3% |
-| Max Attack | −1.5 s | ×1.6 | 8% |
+| Max Attack | −2.0 s | ×1.5 | 8% |
 
 - The mistake chance goes up on worn tyres (up to ×2 below 40% condition) and on slick tyres on a wet track (up to ×3).
 - **Small mistake** (lock-up, running wide): −1.5 to −2.5 s.
 - **Big mistake** (10% of mistakes in Push, 25% in Max Attack): off the track, −5 s, and a flat-spotted tyre: condition −20% and +0.3 s per lap until the next stop.
 - **Spin** on slicks in the wet: −6 s.
+- **Flying off on its own** (4% of mistakes in Push, 28% in Max Attack): into the barrier. 55% of these
+  end the race (always if the front wing is already broken), the rest break the front wing (−6 s).
+  A car out of the race brings out the safety car 35% of the time. A driver on Max Attack the whole
+  race is out in about 1 race in 5.
 - Every mistake creates a team radio message so the kids understand what happened.
 
 ### 7.3a Natural driving within a lap
@@ -201,8 +205,16 @@ When a car is within 1.2 s of the car ahead for about a third of a lap and is fa
 - AI uses Normal mode, Push in the last 3 laps and in duels, Conserve to nurse tyres to the finish, Max Attack only rarely. It pits under a safety car if its tyres are older than about 40% of a stint.
 
 
+### 7.7a Start lights
+The race starts with lights over the track while the cars stand on the grid: one red light, a second
+red light (each with a low beep), a short wait of 1.2 to 2.2 s (different every race), then all three
+go green with a higher, longer beep and the cars go. It runs in real time (also at 2× / 4×) and in
+multiplayer the server holds the race until the lights are green, so everybody starts together.
+
 ### 7.8 Options: driver cards and skipping qualifying
-Two switches in the main menu (saved on the phone; single player and seasons, not multiplayer):
+Two switches in the main menu (saved on the phone). The driver cards are on by default; in
+multiplayer the host switches them on or off in the lobby (each player picks on their own phone,
+the server checks the picks and adds them to the season). Skipping qualifying is single player only.
 - **Driver cards:** after the briefing every player driver gets 3 random cards and picks one
   (roguelite style). A card has an icon, a name and its effect in small print, e.g. 🏃 Went jogging:
   −25 % mistakes; 😴 Great sleep: −0.1 s per lap; 🏋️ Gym session: −30 % crash risk in duels;

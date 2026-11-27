@@ -110,6 +110,7 @@ export function createRace(cfg: RaceConfig): RaceState {
     events: [],
     nextId: 1,
     rng: makeRng(cfg.seed, 0),
+    start: cfg.startLights ? { t: 0, green: tuning.start.red2 + range(makeRng(cfg.seed, 5), tuning.start.pauseMin, tuning.start.pauseMax) } : undefined,
   };
 }
 
@@ -235,6 +236,12 @@ function deploySafetyCar(race: RaceState, laps: number): void {
 /** Advance the race by one tick. `realDt` is real seconds (server: 0.1 s = 10 ticks per second). */
 export function step(race: RaceState, realDt = 0.1): void {
   if (race.over) return;
+  // start lights: everyone waits on the grid until they go green (always in real time)
+  if (race.start && race.start.t < race.start.green) {
+    race.start.t = Math.min(race.start.green, race.start.t + realDt);
+    if (race.start.t >= race.start.green) emit(race, 'lightsOut');
+    return;
+  }
   const t = race.tuning;
   const track = race.track;
   const dt = realDt * race.timeScale * race.speed;
@@ -486,6 +493,21 @@ function makeMistake(race: RaceState, c: Car): void {
   if (c.tyre !== 'W' && race.wetness > m.spinWetness) {
     c.loss += m.spin;
     emit(race, 'spin', c);
+  } else if (t.modes[c.mode].offShare > 0 && rand(c.rng) < t.modes[c.mode].offShare) {
+    // pushing too hard: off the track on its own, into the barrier
+    if (c.wingDamage || rand(c.rng) < t.off.outShare) {
+      c.status = 'dnf';
+      c.speed = 0;
+      c.pitPlan = null;
+      emit(race, 'out', c);
+      if (!race.safetyCar.active && chance(race.rng, t.off.safetyCar)) {
+        deploySafetyCar(race, range(race.rng, t.safetyCar.minLaps, t.safetyCar.maxLaps));
+      }
+    } else {
+      c.loss += t.off.loss;
+      c.wingDamage = true;
+      emit(race, 'offWing', c);
+    }
   } else if (rand(c.rng) < t.modes[c.mode].bigShare) {
     c.loss += m.big;
     c.cond = Math.max(0, c.cond - m.flatSpotWear);

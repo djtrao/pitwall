@@ -12,6 +12,8 @@ export interface Settings {
   races: 3 | 5 | 8;
   /** Race speed set by the host. */
   speed: 1 | 2;
+  /** Driver cards: before every qualifying each player picks one of 3 cards per driver. */
+  cards?: boolean;
 }
 
 export interface PlayerInfo {
@@ -30,7 +32,8 @@ export type ClientMsg =
   | { t: 'ready'; ready: boolean }
   | { t: 'settings'; settings: Settings }
   | { t: 'start' }
-  | { t: 'briefingReady' }
+  /** Briefing done (with the driver cards picked, car id → card id, when cards are on). */
+  | { t: 'briefingReady'; picks?: Record<string, string> }
   | { t: 'qualiRun'; run: QualiRun }
   | { t: 'cmd'; cmd: Command }
   /** Host only: 0 = pause, 1 or 2 = speed. */

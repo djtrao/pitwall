@@ -3,7 +3,7 @@
  * In a season the cards add up race by race.
  */
 import { getLang, t } from '../i18n';
-import { cardById, drawCards, makeRng, type Card, type CarSetup } from '../sim';
+import { cardById, cardOffer, type Card, type CarSetup } from '../sim';
 import { esc } from '../ui/common';
 import { play } from '../ui/assets';
 
@@ -13,6 +13,8 @@ export interface CardsOptions {
   owned: Record<string, string[]>;
   seed: number;
   season: boolean;
+  /** Card slot of a driver (see cardOffer); default: its index. */
+  slot?: (car: CarSetup, i: number) => number;
 }
 
 const cardHTML = (c: Card, driver: string, on: boolean) => {
@@ -25,7 +27,7 @@ const cardHTML = (c: Card, driver: string, on: boolean) => {
 };
 
 export function cardsScreen(app: HTMLElement, o: CardsOptions, done: (picks: Record<string, string>) => void): void {
-  const offers = new Map(o.drivers.map((d, i) => [d.id, drawCards(makeRng(o.seed, 400 + i))]));
+  const offers = new Map(o.drivers.map((d, i) => [d.id, cardOffer(o.seed, o.slot ? o.slot(d, i) : i)]));
   const picks: Record<string, string> = {};
   const render = () => {
     const lang = getLang();

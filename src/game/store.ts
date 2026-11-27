@@ -54,16 +54,17 @@ export interface Settings {
   /** Skip qualifying: the grid is drawn at random. */
   skipQuali: boolean;
 }
-const SETTINGS_KEY = 'pitwall-settings';
+// "-v3": the cards are on by default since build 3 (older saved options had them off)
+const SETTINGS_KEY = 'pitwall-settings-v3';
 
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return { cards: false, skipQuali: false, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) return { cards: true, skipQuali: false, ...(JSON.parse(raw) as Partial<Settings>) };
   } catch {
     /* ignore */
   }
-  return { cards: false, skipQuali: false };
+  return { cards: true, skipQuali: false };
 }
 
 export function saveSettings(s: Settings): void {

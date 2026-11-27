@@ -16,7 +16,12 @@ html, body {
   font-family: 'Titillium Web', system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
+  /* a game, not a page: no text selection (on Android a long tap would open Chrome's "Touch to search") */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
+input, textarea { -webkit-user-select: text; user-select: text; }
 #app { max-width: 1120px; margin: 0 auto; padding: 10px 16px 40px; }
 h1 { font-size: 28px; margin: 4px 0 2px; font-weight: 900; letter-spacing: 0.5px; }
 h3 { font-size: 14px; margin: 0 0 6px; color: var(--mut); text-transform: uppercase; letter-spacing: 1px; }
@@ -93,6 +98,14 @@ tr.me td { background: rgba(255, 255, 255, 0.07); font-weight: 700; }
 /* track overlays */
 .scbanner { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #ffb000; color: #000; font-weight: 900;
   padding: 2px 12px; border-radius: 8px; letter-spacing: 1px; animation: pulse 1s infinite; z-index: 2; font-size: 15px; }
+/* start lights: red, red, then all green */
+.lights { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: none; gap: 12px;
+  padding: 10px 16px; background: #111; border: 3px solid #333; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.5); z-index: 5; pointer-events: none; }
+.lights.show { display: flex; }
+.lights i { width: 46px; height: 46px; border-radius: 50%; background: #2a2a2a; border: 3px solid #444; transition: background .08s; }
+.lights i.red { background: #ff2a2a; border-color: #ff8080; box-shadow: 0 0 22px #ff2a2a; }
+.lights i.green { background: #2bff5a; border-color: #9dffb2; box-shadow: 0 0 26px #2bff5a; }
+@media (max-height: 500px) { .lights i { width: 34px; height: 34px; } }
 .ticker { position: absolute; left: 8px; right: 8px; bottom: 8px; background: rgba(10, 12, 17, 0.85); border: 1px solid var(--line);
   border-radius: 8px; padding: 4px 10px; font-size: 14px; color: #c9d1dc; opacity: 0; transition: opacity 0.4s; pointer-events: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; }
